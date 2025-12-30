@@ -25,8 +25,8 @@ final class App
         $router = new Router();
 
         // Rutas mínimas (salud + home)
-        $router->get('/', [\Erpia2\Controller\HomeController::class, 'index']);
-        $router->get('/health', [\Erpia2\Controller\HealthController::class, 'index']);
+        $router->get('/', [\Erp2\Controller\HomeController::class, 'index']);
+        $router->get('/health', [\Erp2\Controller\HealthController::class, 'index']);
 
         return new self($router);
     }
