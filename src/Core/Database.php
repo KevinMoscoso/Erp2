@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Erpia2\Core;
+namespace Erp2\Core;
 
 use PDO;
 use PDOException;

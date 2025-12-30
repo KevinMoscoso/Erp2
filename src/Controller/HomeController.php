@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace Erpia2\Controller;
+namespace Erp2\Controller;
 
-use Erpia2\Core\View;
+use Erp2\Core\View;
 
 final class HomeController
 {
