@@ -24,6 +24,11 @@ final class App
 
         $router = new Router();
 
+        // Auth (público)
+        $router->get('/login', [\Erp2\Controller\AuthController::class, 'loginForm']);
+        $router->post('/login', [\Erp2\Controller\AuthController::class, 'login']);
+        $router->get('/logout', [\Erp2\Controller\AuthController::class, 'logout']);
+
         // Rutas mínimas (salud + home)
         $router->get('/', [\Erp2\Controller\HomeController::class, 'index']);
         $router->get('/health', [\Erp2\Controller\HealthController::class, 'index']);
