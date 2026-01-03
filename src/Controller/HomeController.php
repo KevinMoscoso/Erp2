@@ -10,7 +10,7 @@ final class HomeController
     public function index(): void
     {
         View::render('home/index', [
-            'title' => 'ERPia2 - Base',
+            'title' => 'ERP2 - Base',
         ]);
     }
 }
