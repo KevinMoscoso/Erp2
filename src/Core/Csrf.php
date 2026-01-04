@@ -26,9 +26,6 @@ final class Csrf
     {
         $stored = $_SESSION[self::SESSION_KEY] ?? null;
 
-        // Rotar/invalidate siempre para reducir reuso, aunque falle.
-        unset($_SESSION[self::SESSION_KEY]);
-
         if (!is_string($stored) || $stored === '') {
             return false;
         }

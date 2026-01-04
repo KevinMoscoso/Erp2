@@ -29,9 +29,23 @@ final class App
         $router->post('/login', [\Erp2\Controller\AuthController::class, 'login']);
         $router->get('/logout', [\Erp2\Controller\AuthController::class, 'logout']);
 
-        // Rutas mínimas (salud + home)
+        // Base
         $router->get('/', [\Erp2\Controller\HomeController::class, 'index']);
         $router->get('/health', [\Erp2\Controller\HealthController::class, 'index']);
+
+        // Módulo: Terceros / Contactos (todas requieren login dentro del controller)
+        $router->get('/terceros', [\Erp2\Controller\TercerosController::class, 'index']);
+        $router->get('/terceros/crear', [\Erp2\Controller\TercerosController::class, 'createForm']);
+        $router->post('/terceros/crear', [\Erp2\Controller\TercerosController::class, 'create']);
+
+        $router->get('/terceros/{id}', [\Erp2\Controller\TercerosController::class, 'show']);
+        $router->get('/terceros/{id}/editar', [\Erp2\Controller\TercerosController::class, 'editForm']);
+        $router->post('/terceros/{id}/editar', [\Erp2\Controller\TercerosController::class, 'update']);
+        $router->post('/terceros/{id}/eliminar', [\Erp2\Controller\TercerosController::class, 'delete']);
+
+        // Contactos
+        $router->post('/terceros/{id}/contactos/crear', [\Erp2\Controller\TercerosController::class, 'createContacto']);
+        $router->post('/terceros/{id}/contactos/{cid}/eliminar', [\Erp2\Controller\TercerosController::class, 'deleteContacto']);
 
         return new self($router);
     }
