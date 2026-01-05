@@ -13,6 +13,9 @@ use Erp2\Model\FacturaDetalle;
 use Erp2\Model\Producto;
 use Erp2\Model\Tercero;
 use PDOException;
+use Erp2\Core\Database;
+use Erp2\Model\InventarioMovimiento;
+use Throwable;
 
 final class FacturasController
 {
@@ -159,6 +162,127 @@ final class FacturasController
         ]);
     }
 
+    public function emitir(int $id): void
+    {
+        Auth::requireLogin();
+        Auth::can('facturas.emitir');
+
+        $token = is_string($_POST['_csrf'] ?? null) ? (string)$_POST['_csrf'] : null;
+        if (!Csrf::validate($token)) {
+            Flash::set('error', 'Solicitud inválida (CSRF).');
+            $this->redirect('/facturas/' . $id);
+        }
+
+        $usuarioId = $this->userId();
+
+        $pdo = Database::pdo();
+        $pdo->beginTransaction();
+
+        try {
+            // Bloquear factura
+            $st = $pdo->prepare("SELECT * FROM facturas WHERE id = :id FOR UPDATE");
+            $st->execute([':id' => $id]);
+            $factura = $st->fetch();
+
+            if (!$factura) {
+                throw new \RuntimeException('Factura no encontrada.');
+            }
+
+            if ((string)($factura['estado'] ?? '') !== 'borrador') {
+                throw new \RuntimeException('Solo se puede emitir una factura en estado borrador.');
+            }
+
+            // Detalles
+            $stD = $pdo->prepare("
+                SELECT id, factura_id, producto_id, descripcion, cantidad, precio_unitario, subtotal_linea
+                FROM factura_detalles
+                WHERE factura_id = :fid
+                ORDER BY id ASC
+            ");
+            $stD->execute([':fid' => $id]);
+            $detalles = $stD->fetchAll();
+
+            if (empty($detalles)) {
+                throw new \RuntimeException('La factura debe tener al menos una línea.');
+            }
+
+            foreach ($detalles as $linea) {
+                $productoId = $linea['producto_id'] ?? null;
+                if ($productoId === null) {
+                    continue; // línea libre sin producto
+                }
+
+                $cantidad = (float)($linea['cantidad'] ?? 0);
+                if ($cantidad <= 0) {
+                    throw new \RuntimeException('Cantidad inválida en una línea.');
+                }
+
+                // Bloquear producto
+                $stP = $pdo->prepare("SELECT id, tipo, stock_actual, estado FROM productos WHERE id = :pid FOR UPDATE");
+                $stP->execute([':pid' => (int)$productoId]);
+                $p = $stP->fetch();
+
+                if (!$p) {
+                    throw new \RuntimeException('Producto no existe (id ' . (int)$productoId . ').');
+                }   
+
+                // Servicios no afectan stock
+                if ((string)($p['tipo'] ?? '') !== 'producto') {
+                    continue;
+                }
+
+                if ((int)($p['estado'] ?? 1) === 0) {
+                    throw new \RuntimeException('Producto inactivo (id ' . (int)$productoId . ').');
+                }
+
+                $stockAnterior = (float)($p['stock_actual'] ?? 0);
+                $stockNuevo = $stockAnterior - $cantidad;
+
+                if ($stockNuevo < 0) {
+                    throw new \RuntimeException('Stock insuficiente para emitir (producto ' . (int)$productoId . ').');
+                }
+
+                $up = $pdo->prepare("UPDATE productos SET stock_actual = :s, updated_at = NOW() WHERE id = :pid");
+                $up->execute([':s' => $stockNuevo, ':pid' => (int)$productoId]);
+
+                InventarioMovimiento::insert(
+                    $pdo,
+                    (int)$productoId,
+                    'salida',
+                    $cantidad,
+                    $stockAnterior,
+                    $stockNuevo,
+                    $usuarioId ?: null,
+                    'Salida por emisión de factura',
+                    'factura',
+                    (int)$id
+                );
+            }
+
+            // Cambiar estado a emitida
+            $upF = $pdo->prepare("UPDATE facturas SET estado = 'emitida', updated_at = NOW() WHERE id = :id");
+            $upF->execute([':id' => $id]);
+
+            Auditoria::log(
+                $usuarioId,
+                'emitir',
+                'facturas',
+                (int)$id,
+                ['estado_anterior' => 'borrador', 'estado_nuevo' => 'emitida']
+            );
+
+            $pdo->commit();
+            Flash::set('success', 'Factura emitida correctamente.');
+            $this->redirect('/facturas/' . $id);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            Flash::set('error', 'No se pudo emitir: ' . $e->getMessage());
+            $this->redirect('/facturas/' . $id);
+        }
+    }
+
     public function anular(int $id): void
     {
         Auth::requireLogin();
@@ -166,28 +290,109 @@ final class FacturasController
 
         $token = is_string($_POST['_csrf'] ?? null) ? (string)$_POST['_csrf'] : null;
         if (!Csrf::validate($token)) {
-            Flash::set('error', 'Solicitud inválida. Intenta nuevamente.');
-            header('Location: /facturas/' . $id, true, 303);
-            exit;
+            Flash::set('error', 'Solicitud inválida (CSRF).');
+            $this->redirect('/facturas/' . $id);
         }
 
-        $factura = Factura::find($id);
-        if (!$factura) {
-            http_response_code(404);
-            echo "404 Not Found";
-            return;
+        $usuarioId = $this->userId();
+
+        $pdo = Database::pdo();
+        $pdo->beginTransaction();
+
+        try {
+            $st = $pdo->prepare("SELECT * FROM facturas WHERE id = :id FOR UPDATE");
+            $st->execute([':id' => $id]);
+            $factura = $st->fetch();
+
+            if (!$factura) {
+                throw new \RuntimeException('Factura no encontrada.');
+            }
+
+            $estado = (string)($factura['estado'] ?? '');
+
+            if ($estado === 'anulada') {
+                $pdo->commit();
+                Flash::set('success', 'La factura ya estaba anulada.');
+                $this->redirect('/facturas/' . $id);
+            }
+
+            // Si estaba emitida, revertir stock
+            if ($estado === 'emitida') {
+                $stD = $pdo->prepare("
+                    SELECT id, producto_id, cantidad
+                    FROM factura_detalles
+                    WHERE factura_id = :fid
+                    ORDER BY id ASC
+                ");
+                $stD->execute([':fid' => $id]);
+                $detalles = $stD->fetchAll();
+
+                foreach ($detalles as $linea) {
+                    $productoId = $linea['producto_id'] ?? null;
+                    if ($productoId === null) {
+                        continue;
+                    }
+
+                    $cantidad = (float)($linea['cantidad'] ?? 0);
+                    if ($cantidad <= 0) {
+                        throw new \RuntimeException('Cantidad inválida en una línea.');
+                    }
+
+                    $stP = $pdo->prepare("SELECT id, tipo, stock_actual, estado FROM productos WHERE id = :pid FOR UPDATE");
+                    $stP->execute([':pid' => (int)$productoId]);
+                    $p = $stP->fetch();
+
+                    if (!$p) {
+                        throw new \RuntimeException('Producto no existe (id ' . (int)$productoId . ').');
+                    }
+
+                    // Servicios no afectan stock
+                    if ((string)($p['tipo'] ?? '') !== 'producto') {
+                        continue;
+                    }
+
+                    $stockAnterior = (float)($p['stock_actual'] ?? 0);
+                    $stockNuevo = $stockAnterior + $cantidad;
+
+                    $up = $pdo->prepare("UPDATE productos SET stock_actual = :s, updated_at = NOW() WHERE id = :pid");
+                    $up->execute([':s' => $stockNuevo, ':pid' => (int)$productoId]);
+
+                    InventarioMovimiento::insert(
+                        $pdo,
+                        (int)$productoId,
+                        'entrada',
+                        $cantidad,
+                        $stockAnterior,
+                        $stockNuevo,
+                        $usuarioId ?: null,
+                        'Entrada por anulación (reversa de factura)',
+                        'factura',
+                        (int)$id
+                    );
+                }
+            }
+
+            $upF = $pdo->prepare("UPDATE facturas SET estado = 'anulada', updated_at = NOW() WHERE id = :id");
+            $upF->execute([':id' => $id]);
+
+            Auditoria::log(
+                $usuarioId,
+                'anular',
+                'facturas',
+                (int)$id,
+                ['estado_anterior' => $estado, 'estado_nuevo' => 'anulada']
+            );
+
+            $pdo->commit();
+            Flash::set('success', 'Factura anulada correctamente.');
+            $this->redirect('/facturas/' . $id);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            Flash::set('error', 'No se pudo anular: ' . $e->getMessage());
+            $this->redirect('/facturas/' . $id);
         }
-
-        $ok = Factura::anular($id);
-
-        Auditoria::log($this->userId(), 'anular', 'facturas', $id, [
-            'changed' => $ok,
-            'prev_estado' => (string)($factura['estado'] ?? ''),
-        ]);
-
-        Flash::set('success', $ok ? 'Factura anulada.' : 'La factura ya estaba anulada.');
-        header('Location: /facturas/' . $id, true, 303);
-        exit;
     }
 
     /**
@@ -291,5 +496,11 @@ final class FacturasController
         }
         $parts = explode('-', $date);
         return checkdate((int)$parts[1], (int)$parts[2], (int)$parts[0]);
+    }
+    
+    private function redirect(string $to): void
+    {
+        header('Location: ' . $to, true, 303);
+        exit;
     }
 }

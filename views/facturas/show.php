@@ -28,7 +28,12 @@
     <li><strong>Subtotal:</strong> <?= htmlspecialchars((string)($f['subtotal'] ?? ''), ENT_QUOTES, 'UTF-8') ?></li>
     <li><strong>Total:</strong> <?= htmlspecialchars((string)($f['total'] ?? ''), ENT_QUOTES, 'UTF-8') ?></li>
   </ul>
-
+  <?php if (\Erp2\Core\Auth::has('facturas.emitir') && (string)($f['estado'] ?? '') === 'borrador'): ?>
+    <form method="post" action="/facturas/<?= $id ?>/emitir" style="display:inline; margin-right:8px;">
+      <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrf ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+      <button type="submit" onclick="return confirm('¿Emitir factura? Esto descontará stock.');">Emitir</button>
+    </form>
+  <?php endif; ?>
   <?php if (\Erp2\Core\Auth::has('facturas.anular') && (string)($f['estado'] ?? '') !== 'anulada'): ?>
     <form method="post" action="/facturas/<?= $id ?>/anular" style="display:inline;">
       <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrf ?? ''), ENT_QUOTES, 'UTF-8') ?>">

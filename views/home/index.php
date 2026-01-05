@@ -44,6 +44,12 @@
     <?php else: ?>
       <li>Facturas (sin permiso: facturas.ver)</li>
     <?php endif; ?>
+    
+    <?php if (\Erp2\Core\Auth::has('inventario.ver')): ?>
+      <li><a href="/inventario">Inventario</a></li>
+    <?php else: ?>
+      <li>Inventario (sin permiso: inventario.ver)</li>
+    <?php endif; ?>
   </ul>
 
   <p>Prototipo ERP2: módulos incrementales con RBAC, auditoría y validaciones mínimas.</p>

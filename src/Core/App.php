@@ -59,6 +59,13 @@ final class App
         $router->post('/facturas/crear', [\Erp2\Controller\FacturasController::class, 'create']);
         $router->get('/facturas/{id}', [\Erp2\Controller\FacturasController::class, 'show']);
         $router->post('/facturas/{id}/anular', [\Erp2\Controller\FacturasController::class, 'anular']);
+        // Inventario (mínimo)
+        $router->get('/inventario', [\Erp2\Controller\InventarioController::class, 'index']);
+        $router->get('/inventario/{id}', [\Erp2\Controller\InventarioController::class, 'show']);
+        $router->post('/inventario/{id}/ajustar', [\Erp2\Controller\InventarioController::class, 'ajustar']);
+
+        // Facturas: emitir
+        $router->post('/facturas/{id}/emitir', [\Erp2\Controller\FacturasController::class, 'emitir']);
 
         return new self($router);
     }
