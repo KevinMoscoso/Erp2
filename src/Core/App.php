@@ -53,6 +53,13 @@ final class App
         $router->post('/productos/{id}/editar', [\Erp2\Controller\ProductosController::class, 'update']);
         $router->post('/productos/{id}/eliminar', [\Erp2\Controller\ProductosController::class, 'delete']);
 
+        // Módulo: Facturas
+        $router->get('/facturas', [\Erp2\Controller\FacturasController::class, 'index']);
+        $router->get('/facturas/crear', [\Erp2\Controller\FacturasController::class, 'createForm']);
+        $router->post('/facturas/crear', [\Erp2\Controller\FacturasController::class, 'create']);
+        $router->get('/facturas/{id}', [\Erp2\Controller\FacturasController::class, 'show']);
+        $router->post('/facturas/{id}/anular', [\Erp2\Controller\FacturasController::class, 'anular']);
+
         return new self($router);
     }
 

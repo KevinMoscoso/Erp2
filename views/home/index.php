@@ -38,6 +38,12 @@
     <?php else: ?>
       <li>Productos/Servicios (sin permiso: productos.ver)</li>
     <?php endif; ?>
+
+    <?php if (\Erp2\Core\Auth::has('facturas.ver')): ?>
+      <li><a href="/facturas">Facturas</a></li>
+    <?php else: ?>
+      <li>Facturas (sin permiso: facturas.ver)</li>
+    <?php endif; ?>
   </ul>
 
   <p>Prototipo ERP2: módulos incrementales con RBAC, auditoría y validaciones mínimas.</p>
