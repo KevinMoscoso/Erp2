@@ -16,7 +16,6 @@ final class App
 
     public static function bootstrap(): self
     {
-        // Cargar .env si existe
         $root = dirname(__DIR__, 2);
         if (is_file($root . '/.env')) {
             Dotenv::createImmutable($root)->safeLoad();
@@ -33,7 +32,7 @@ final class App
         $router->get('/', [\Erp2\Controller\HomeController::class, 'index']);
         $router->get('/health', [\Erp2\Controller\HealthController::class, 'index']);
 
-        // Módulo: Terceros / Contactos
+        // Terceros / Contactos
         $router->get('/terceros', [\Erp2\Controller\TercerosController::class, 'index']);
         $router->get('/terceros/crear', [\Erp2\Controller\TercerosController::class, 'createForm']);
         $router->post('/terceros/crear', [\Erp2\Controller\TercerosController::class, 'create']);
@@ -44,7 +43,7 @@ final class App
         $router->post('/terceros/{id}/contactos/crear', [\Erp2\Controller\TercerosController::class, 'createContacto']);
         $router->post('/terceros/{id}/contactos/{cid}/eliminar', [\Erp2\Controller\TercerosController::class, 'deleteContacto']);
 
-        // Módulo: Productos / Servicios
+        // Productos / Servicios
         $router->get('/productos', [\Erp2\Controller\ProductosController::class, 'index']);
         $router->get('/productos/crear', [\Erp2\Controller\ProductosController::class, 'createForm']);
         $router->post('/productos/crear', [\Erp2\Controller\ProductosController::class, 'create']);
@@ -53,19 +52,26 @@ final class App
         $router->post('/productos/{id}/editar', [\Erp2\Controller\ProductosController::class, 'update']);
         $router->post('/productos/{id}/eliminar', [\Erp2\Controller\ProductosController::class, 'delete']);
 
-        // Módulo: Facturas
+        // Facturas
         $router->get('/facturas', [\Erp2\Controller\FacturasController::class, 'index']);
         $router->get('/facturas/crear', [\Erp2\Controller\FacturasController::class, 'createForm']);
         $router->post('/facturas/crear', [\Erp2\Controller\FacturasController::class, 'create']);
         $router->get('/facturas/{id}', [\Erp2\Controller\FacturasController::class, 'show']);
+        $router->post('/facturas/{id}/emitir', [\Erp2\Controller\FacturasController::class, 'emitir']);
         $router->post('/facturas/{id}/anular', [\Erp2\Controller\FacturasController::class, 'anular']);
-        // Inventario (mínimo)
+
+        // Inventario
         $router->get('/inventario', [\Erp2\Controller\InventarioController::class, 'index']);
         $router->get('/inventario/{id}', [\Erp2\Controller\InventarioController::class, 'show']);
         $router->post('/inventario/{id}/ajustar', [\Erp2\Controller\InventarioController::class, 'ajustar']);
 
-        // Facturas: emitir
-        $router->post('/facturas/{id}/emitir', [\Erp2\Controller\FacturasController::class, 'emitir']);
+        // Compras (nuevo)
+        $router->get('/compras', [\Erp2\Controller\ComprasController::class, 'index']);
+        $router->get('/compras/crear', [\Erp2\Controller\ComprasController::class, 'createForm']);
+        $router->post('/compras/crear', [\Erp2\Controller\ComprasController::class, 'create']);
+        $router->get('/compras/{id}', [\Erp2\Controller\ComprasController::class, 'show']);
+        $router->post('/compras/{id}/emitir', [\Erp2\Controller\ComprasController::class, 'emitir']);
+        $router->post('/compras/{id}/anular', [\Erp2\Controller\ComprasController::class, 'anular']);
 
         return new self($router);
     }

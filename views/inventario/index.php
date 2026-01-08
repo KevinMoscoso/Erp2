@@ -49,16 +49,30 @@ use Erp2\Core\Auth;
         </thead>
         <tbody>
         <?php foreach (($productos ?? []) as $p): ?>
+            <?php
+                $id = (int)($p['id'] ?? 0);
+                $tipo = (string)($p['tipo'] ?? '');
+                $esProducto = ($tipo === 'producto');
+                $stockLabel = $esProducto ? (string)($p['stock_actual'] ?? '0.00') : '—';
+            ?>
             <tr>
-                <td><?= htmlspecialchars((string)$p['id'], ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= htmlspecialchars((string)$p['tipo'], ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= htmlspecialchars((string)$p['referencia'], ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= htmlspecialchars((string)$p['nombre'], ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= htmlspecialchars((string)$p['stock_actual'], ENT_QUOTES, 'UTF-8') ?></td>
+                <td><?= htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8') ?></td>
+                <td><?= htmlspecialchars($tipo, ENT_QUOTES, 'UTF-8') ?></td>
+                <td><?= htmlspecialchars((string)($p['referencia'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+                <td><?= htmlspecialchars((string)($p['nombre'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+
+                <td><?= htmlspecialchars($stockLabel, ENT_QUOTES, 'UTF-8') ?></td>
+
                 <td><?= ((int)($p['estado'] ?? 1) === 1) ? 'Activo' : 'Inactivo' ?></td>
                 <td>
                     <?php if (Auth::has('inventario.ver')): ?>
-                        <a href="/inventario/<?= (int)$p['id'] ?>">Ver Kardex</a>
+
+                        <!-- Opción A (recomendada): Kardex solo para productos -->
+                        <?php if ($esProducto): ?>
+                            <a href="/inventario/<?= $id ?>">Ver Kardex</a>
+                        <?php else: ?>
+                            <span style="color:#666;">(sin kardex)</span>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </td>
             </tr>

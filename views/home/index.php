@@ -29,26 +29,22 @@
 
     <?php if (\Erp2\Core\Auth::has('terceros.ver')): ?>
       <li><a href="/terceros">Terceros</a></li>
-    <?php else: ?>
-      <li>Terceros (sin permiso: terceros.ver)</li>
     <?php endif; ?>
 
     <?php if (\Erp2\Core\Auth::has('productos.ver')): ?>
       <li><a href="/productos">Productos/Servicios</a></li>
-    <?php else: ?>
-      <li>Productos/Servicios (sin permiso: productos.ver)</li>
     <?php endif; ?>
 
     <?php if (\Erp2\Core\Auth::has('facturas.ver')): ?>
       <li><a href="/facturas">Facturas</a></li>
-    <?php else: ?>
-      <li>Facturas (sin permiso: facturas.ver)</li>
     <?php endif; ?>
-    
+
     <?php if (\Erp2\Core\Auth::has('inventario.ver')): ?>
       <li><a href="/inventario">Inventario</a></li>
-    <?php else: ?>
-      <li>Inventario (sin permiso: inventario.ver)</li>
+    <?php endif; ?>
+
+    <?php if (\Erp2\Core\Auth::has('compras.ver')): ?>
+      <li><a href="/compras">Compras</a></li>
     <?php endif; ?>
   </ul>
 

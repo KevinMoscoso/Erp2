@@ -204,58 +204,78 @@ final class TercerosController
 
     public function createContacto(int $id): void
     {
-        Auth::requireLogin();
-        Auth::can('terceros.editar'); // Permiso mínimo para gestionar contactos
+        \Erp2\Core\Auth::requireLogin();
+        // Ajusta el permiso al que uses para editar terceros:
+        \Erp2\Core\Auth::can('terceros.editar');
 
-        $token = is_string($_POST['_csrf'] ?? null) ? (string) $_POST['_csrf'] : null;
-        if (!Csrf::validate($token)) {
-            Flash::set('error', 'Solicitud inválida. Intenta nuevamente.');
+        if (!\Erp2\Core\Csrf::validate($_POST['_csrf'] ?? null)) {
+            \Erp2\Core\Flash::set('error', 'Solicitud inválida (CSRF).');
             header('Location: /terceros/' . $id, true, 303);
             exit;
         }
 
-        $tercero = Tercero::find($id);
-        if (!$tercero) {
-            http_response_code(404);
-            echo "404 Not Found";
-            return;
+        $nombres  = trim((string)($_POST['nombres'] ?? ($_POST['nombre'] ?? ''))); // soporta ambos
+        $email    = trim((string)($_POST['email'] ?? ''));
+        $telefono = trim((string)($_POST['telefono'] ?? ''));
+        $cargo    = trim((string)($_POST['cargo'] ?? ''));
+        $notas    = trim((string)($_POST['notas'] ?? ''));
+
+        if ($nombres === '' || mb_strlen($nombres) > 160) {
+            \Erp2\Core\Flash::set('error', 'El nombre del contacto es obligatorio (máx. 160).');
+            header('Location: /terceros/' . $id, true, 303);
+            exit;
         }
-
-        $nombre = trim((string) ($_POST['nombre'] ?? ''));
-        $email = trim((string) ($_POST['email'] ?? ''));
-        $telefono = trim((string) ($_POST['telefono'] ?? ''));
-
-        if ($nombre === '' || mb_strlen($nombre) < 1 || mb_strlen($nombre) > 160) {
-            Flash::set('error', 'Nombre del contacto es obligatorio (1..160).');
+        if ($email !== '' && mb_strlen($email) > 190) {
+            \Erp2\Core\Flash::set('error', 'Email demasiado largo (máx. 190).');
             header('Location: /terceros/' . $id, true, 303);
             exit;
         }
 
-        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            Flash::set('error', 'Email del contacto no es válido.');
+        $pdo = \Erp2\Core\Database::pdo();
+
+        try {
+            // Validar tercero existe
+            $stT = $pdo->prepare("SELECT id FROM terceros WHERE id = :id LIMIT 1");
+            $stT->execute([':id' => $id]);
+            $ter = $stT->fetch();
+            if (!$ter) {
+                \Erp2\Core\Flash::set('error', 'El tercero no existe.');
+                header('Location: /terceros', true, 303);
+                exit;
+            }
+
+            $st = $pdo->prepare("
+                INSERT INTO contactos (tercero_id, nombres, email, telefono, cargo, notas, created_at)
+                VALUES (:tercero_id, :nombres, :email, :telefono, :cargo, :notas, NOW())
+            ");
+            $st->execute([
+                ':tercero_id' => $id,
+                ':nombres' => $nombres,
+                ':email' => ($email !== '' ? $email : null),
+                ':telefono' => ($telefono !== '' ? $telefono : null),
+                ':cargo' => ($cargo !== '' ? $cargo : null),
+                ':notas' => ($notas !== '' ? $notas : null),
+            ]);
+
+            $contactoId = (int)$pdo->lastInsertId();
+
+            \Erp2\Model\Auditoria::log(
+                (int)(\Erp2\Core\Auth::user()['id'] ?? 0),
+                'crear',
+                'contactos',
+                $contactoId,
+                ['tercero_id' => $id]
+            );
+
+            \Erp2\Core\Flash::set('success', 'Contacto agregado.');
+            header('Location: /terceros/' . $id, true, 303);
+            exit;
+
+        } catch (\Throwable $e) {
+            \Erp2\Core\Flash::set('error', 'Error al crear contacto: ' . $e->getMessage());
             header('Location: /terceros/' . $id, true, 303);
             exit;
         }
-
-        if (mb_strlen($telefono) > 30) {
-            Flash::set('error', 'Teléfono del contacto excede 30 caracteres.');
-            header('Location: /terceros/' . $id, true, 303);
-            exit;
-        }
-
-        $cid = Contacto::create($id, [
-            'nombres' => $nombre,
-            'email' => $email,
-            'telefono' => $telefono,
-        ]);
-
-        Auditoria::log($this->userId(), 'crear', 'contactos', $cid, [
-            'tercero_id' => $id,
-        ]);
-
-        Flash::set('success', 'Contacto creado correctamente.');
-        header('Location: /terceros/' . $id, true, 303);
-        exit;
     }
 
     public function deleteContacto(int $id, int $cid): void
