@@ -23,7 +23,7 @@ final class App
 
         $router = new Router();
 
-        // Auth (público)
+        // Auth
         $router->get('/login', [\Erp2\Controller\AuthController::class, 'loginForm']);
         $router->post('/login', [\Erp2\Controller\AuthController::class, 'login']);
         $router->get('/logout', [\Erp2\Controller\AuthController::class, 'logout']);
@@ -65,13 +65,19 @@ final class App
         $router->get('/inventario/{id}', [\Erp2\Controller\InventarioController::class, 'show']);
         $router->post('/inventario/{id}/ajustar', [\Erp2\Controller\InventarioController::class, 'ajustar']);
 
-        // Compras (nuevo)
+        // Compras
         $router->get('/compras', [\Erp2\Controller\ComprasController::class, 'index']);
         $router->get('/compras/crear', [\Erp2\Controller\ComprasController::class, 'createForm']);
         $router->post('/compras/crear', [\Erp2\Controller\ComprasController::class, 'create']);
         $router->get('/compras/{id}', [\Erp2\Controller\ComprasController::class, 'show']);
         $router->post('/compras/{id}/emitir', [\Erp2\Controller\ComprasController::class, 'emitir']);
         $router->post('/compras/{id}/anular', [\Erp2\Controller\ComprasController::class, 'anular']);
+
+        // Pagos (nuevo)
+        $router->get('/pagos', [\Erp2\Controller\PagosController::class, 'index']);
+        $router->get('/pagos/crear', [\Erp2\Controller\PagosController::class, 'createForm']);
+        $router->post('/pagos/crear', [\Erp2\Controller\PagosController::class, 'create']);
+        $router->post('/pagos/{id}/eliminar', [\Erp2\Controller\PagosController::class, 'delete']);
 
         return new self($router);
     }

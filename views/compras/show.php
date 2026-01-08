@@ -1,9 +1,34 @@
+<?php
+declare(strict_types=1);
+
+use Erp2\Core\Auth;
+use Erp2\Core\Csrf;
+use Erp2\Model\Pago;
+
+$c = $compra ?? [];
+$id = (int)($c['id'] ?? 0);
+$estado = (string)($c['estado'] ?? '');
+$total = (float)($c['total'] ?? 0);
+
+$pagos = [];
+$pagado = 0.0;
+$saldo = 0.0;
+$estadoPago = 'pendiente';
+
+if (Auth::has('pagos.ver') && $id > 0) {
+    $pagos = Pago::listByRef('compra', $id);
+    $pagado = Pago::sumByRef('compra', $id);
+    $saldo = round($total - $pagado, 2);
+    if ($pagado <= 0.0) $estadoPago = 'pendiente';
+    elseif (abs($pagado - $total) < 0.00001) $estadoPago = 'pagado';
+    else $estadoPago = 'parcial';
+}
+?>
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title><?= htmlspecialchars($title ?? 'Detalle compra', ENT_QUOTES, 'UTF-8') ?></title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Compra</title>
 </head>
 <body>
   <p><a href="/compras">← Volver</a></p>
@@ -15,31 +40,27 @@
     <p style="color:#0a7a0a;"><?= htmlspecialchars((string)$success, ENT_QUOTES, 'UTF-8') ?></p>
   <?php endif; ?>
 
-  <?php $c = $compra ?? []; $id = (int)($c['id'] ?? 0); $estado = (string)($c['estado'] ?? ''); ?>
-
   <h1>Compra <?= htmlspecialchars((string)($c['numero'] ?? ''), ENT_QUOTES, 'UTF-8') ?></h1>
 
   <ul>
-    <li><strong>ID:</strong> <?= htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8') ?></li>
     <li><strong>Fecha:</strong> <?= htmlspecialchars((string)($c['fecha'] ?? ''), ENT_QUOTES, 'UTF-8') ?></li>
     <li><strong>Proveedor:</strong> <?= htmlspecialchars((string)($c['tercero_nombre'] ?? ''), ENT_QUOTES, 'UTF-8') ?></li>
     <li><strong>Estado:</strong> <?= htmlspecialchars($estado, ENT_QUOTES, 'UTF-8') ?></li>
-    <li><strong>Subtotal:</strong> <?= htmlspecialchars((string)($c['subtotal'] ?? ''), ENT_QUOTES, 'UTF-8') ?></li>
     <li><strong>Total:</strong> <?= htmlspecialchars((string)($c['total'] ?? ''), ENT_QUOTES, 'UTF-8') ?></li>
   </ul>
 
   <p>
-    <?php if (\Erp2\Core\Auth::has('compras.emitir') && $estado === 'borrador'): ?>
+    <?php if ($estado === 'borrador' && Auth::has('compras.emitir')): ?>
       <form method="post" action="/compras/<?= $id ?>/emitir" style="display:inline;">
-        <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrf ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+        <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)Csrf::token(), ENT_QUOTES, 'UTF-8') ?>">
         <button type="submit" onclick="return confirm('¿Emitir compra?');">Emitir</button>
       </form>
     <?php endif; ?>
 
-    <?php if (\Erp2\Core\Auth::has('compras.anular') && $estado !== 'anulada'): ?>
-      <?php if (\Erp2\Core\Auth::has('compras.emitir') && $estado === 'borrador'): ?> | <?php endif; ?>
+    <?php if ($estado !== 'anulada' && Auth::has('compras.anular')): ?>
+      <?php if ($estado === 'borrador' && Auth::has('compras.emitir')): ?> | <?php endif; ?>
       <form method="post" action="/compras/<?= $id ?>/anular" style="display:inline;">
-        <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrf ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+        <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)Csrf::token(), ENT_QUOTES, 'UTF-8') ?>">
         <button type="submit" onclick="return confirm('¿Anular compra?');">Anular</button>
       </form>
     <?php endif; ?>
@@ -48,7 +69,6 @@
   <hr>
 
   <h2>Detalle</h2>
-
   <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%;">
     <thead>
       <tr>
@@ -56,31 +76,79 @@
         <th>Producto</th>
         <th>Descripción</th>
         <th>Cantidad</th>
-        <th>Costo unitario</th>
-        <th>Subtotal línea</th>
+        <th>Costo unit.</th>
+        <th>Subtotal</th>
       </tr>
     </thead>
     <tbody>
       <?php foreach (($detalles ?? []) as $i => $d): ?>
-        <?php
-          $ref = (string)($d['producto_referencia'] ?? '');
-          $nom = (string)($d['producto_nombre'] ?? '');
-          $prod = trim($ref . ' ' . $nom);
-        ?>
         <tr>
           <td><?= htmlspecialchars((string)($i + 1), ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars($prod !== '' ? $prod : '—', ENT_QUOTES, 'UTF-8') ?></td>
+          <td><?= htmlspecialchars((string)($d['producto_id'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
           <td><?= htmlspecialchars((string)($d['descripcion'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
           <td><?= htmlspecialchars((string)($d['cantidad'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
           <td><?= htmlspecialchars((string)($d['costo_unitario'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
           <td><?= htmlspecialchars((string)($d['subtotal_linea'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
         </tr>
       <?php endforeach; ?>
-
       <?php if (empty($detalles)): ?>
         <tr><td colspan="6">Sin líneas.</td></tr>
       <?php endif; ?>
     </tbody>
   </table>
+
+  <?php if (Auth::has('pagos.ver')): ?>
+    <hr>
+    <h2>Pagos</h2>
+
+    <p>
+      <strong>Estado de pago:</strong> <?= htmlspecialchars($estadoPago, ENT_QUOTES, 'UTF-8') ?> |
+      <strong>Pagado:</strong> <?= htmlspecialchars(number_format($pagado, 2, '.', ''), ENT_QUOTES, 'UTF-8') ?> |
+      <strong>Saldo:</strong> <?= htmlspecialchars(number_format(max(0.0, $saldo), 2, '.', ''), ENT_QUOTES, 'UTF-8') ?>
+    </p>
+
+    <?php if (Auth::has('pagos.crear')): ?>
+      <p><a href="/pagos/crear?tipo_ref=compra&ref_id=<?= $id ?>">Registrar pago para esta compra</a></p>
+    <?php endif; ?>
+
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Monto</th>
+          <th>Método</th>
+          <th>Referencia</th>
+          <th>Nota</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($pagos as $p): ?>
+          <?php $pid = (int)($p['id'] ?? 0); ?>
+          <tr>
+            <td><?= htmlspecialchars((string)($p['fecha'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+            <td><?= htmlspecialchars((string)($p['monto'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+            <td><?= htmlspecialchars((string)($p['metodo'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+            <td><?= htmlspecialchars((string)($p['referencia'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+            <td><?= htmlspecialchars((string)($p['nota'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+            <td>
+              <?php if (Auth::has('pagos.eliminar')): ?>
+                <form method="post" action="/pagos/<?= $pid ?>/eliminar" style="display:inline;">
+                  <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)Csrf::token(), ENT_QUOTES, 'UTF-8') ?>">
+                  <button type="submit" onclick="return confirm('¿Eliminar pago?');">Eliminar</button>
+                </form>
+              <?php else: ?>
+                —
+              <?php endif; ?>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+
+        <?php if (empty($pagos)): ?>
+          <tr><td colspan="6">Sin pagos registrados.</td></tr>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  <?php endif; ?>
 </body>
 </html>

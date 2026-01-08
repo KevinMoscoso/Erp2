@@ -46,6 +46,10 @@
     <?php if (\Erp2\Core\Auth::has('compras.ver')): ?>
       <li><a href="/compras">Compras</a></li>
     <?php endif; ?>
+
+    <?php if (\Erp2\Core\Auth::has('pagos.ver')): ?>
+      <li><a href="/pagos">Pagos</a></li>
+    <?php endif; ?>
   </ul>
 
   <p>Prototipo ERP2: módulos incrementales con RBAC, auditoría y validaciones mínimas.</p>
