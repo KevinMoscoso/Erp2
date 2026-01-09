@@ -32,6 +32,9 @@ final class App
         $router->get('/', [\Erp2\Controller\HomeController::class, 'index']);
         $router->get('/health', [\Erp2\Controller\HealthController::class, 'index']);
 
+        // Cartera (nuevo)
+        $router->get('/cartera', [\Erp2\Controller\CarteraController::class, 'index']);
+
         // Terceros / Contactos
         $router->get('/terceros', [\Erp2\Controller\TercerosController::class, 'index']);
         $router->get('/terceros/crear', [\Erp2\Controller\TercerosController::class, 'createForm']);
@@ -73,7 +76,7 @@ final class App
         $router->post('/compras/{id}/emitir', [\Erp2\Controller\ComprasController::class, 'emitir']);
         $router->post('/compras/{id}/anular', [\Erp2\Controller\ComprasController::class, 'anular']);
 
-        // Pagos (nuevo)
+        // Pagos
         $router->get('/pagos', [\Erp2\Controller\PagosController::class, 'index']);
         $router->get('/pagos/crear', [\Erp2\Controller\PagosController::class, 'createForm']);
         $router->post('/pagos/crear', [\Erp2\Controller\PagosController::class, 'create']);
