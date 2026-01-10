@@ -16,6 +16,9 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 
 require __DIR__ . '/../vendor/autoload.php';
 
+// Helpers UX (old input / field errors)
+require_once __DIR__ . '/../src/Core/form_helpers.php';
+
 use Erp2\Core\App;
 
 $app = App::bootstrap();
