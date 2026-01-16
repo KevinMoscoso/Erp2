@@ -1,9 +1,21 @@
+<?php
+declare(strict_types=1);
+
+$tipoRef = (string) old('tipo_ref', (string)($tipo_ref ?? 'factura'));
+if (!in_array($tipoRef, ['factura', 'compra'], true)) $tipoRef = 'factura';
+
+$refIdFactura = (int) old('ref_id_factura', (string)($tipo_ref === 'factura' ? (string)($ref_id ?? 0) : '0'));
+$refIdCompra  = (int) old('ref_id_compra',  (string)($tipo_ref === 'compra' ? (string)($ref_id ?? 0) : '0'));
+?>
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <title><?= htmlspecialchars($title ?? 'Registrar pago', ENT_QUOTES, 'UTF-8') ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    .err { color:#b00020; font-size: 0.95em; margin-top: 4px; }
+  </style>
 </head>
 <body>
   <h1><?= htmlspecialchars($title ?? 'Registrar pago', ENT_QUOTES, 'UTF-8') ?></h1>
@@ -34,9 +46,10 @@
     <div>
       <label>Tipo referencia</label><br>
       <select name="tipo_ref">
-        <option value="factura" <?= (($tipo_ref ?? '') === 'factura') ? 'selected' : '' ?>>Factura</option>
-        <option value="compra"  <?= (($tipo_ref ?? '') === 'compra')  ? 'selected' : '' ?>>Compra</option>
+        <option value="factura" <?= ($tipoRef === 'factura') ? 'selected' : '' ?>>Factura</option>
+        <option value="compra"  <?= ($tipoRef === 'compra')  ? 'selected' : '' ?>>Compra</option>
       </select>
+      <?php if (err('tipo_ref')): ?><div class="err"><?= htmlspecialchars(err('tipo_ref') ?? '', ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
       <small>(Selecciona una factura o una compra en los selects de abajo)</small>
     </div>
 
@@ -49,7 +62,7 @@
         <?php foreach (($facturas ?? []) as $f): ?>
           <?php
             $fid = (int)($f['id'] ?? 0);
-            $sel = (($tipo_ref ?? '') === 'factura' && (int)($ref_id ?? 0) === $fid) ? 'selected' : '';
+            $sel = ($tipoRef === 'factura' && $refIdFactura === $fid) ? 'selected' : '';
           ?>
           <option value="<?= $fid ?>" <?= $sel ?>>
             <?= htmlspecialchars((string)($f['numero'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
@@ -58,6 +71,7 @@
           </option>
         <?php endforeach; ?>
       </select>
+      <?php if (err('ref_id')): ?><div class="err"><?= htmlspecialchars(err('ref_id') ?? '', ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
     </div>
 
     <div style="margin-top:8px;">
@@ -67,7 +81,7 @@
         <?php foreach (($compras ?? []) as $c): ?>
           <?php
             $cid = (int)($c['id'] ?? 0);
-            $sel = (($tipo_ref ?? '') === 'compra' && (int)($ref_id ?? 0) === $cid) ? 'selected' : '';
+            $sel = ($tipoRef === 'compra' && $refIdCompra === $cid) ? 'selected' : '';
           ?>
           <option value="<?= $cid ?>" <?= $sel ?>>
             <?= htmlspecialchars((string)($c['numero'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
@@ -82,27 +96,37 @@
 
     <div>
       <label>Fecha</label><br>
-      <input type="date" name="fecha" value="<?= htmlspecialchars((string)($today ?? date('Y-m-d')), ENT_QUOTES, 'UTF-8') ?>" required>
+      <input type="date" name="fecha"
+        value="<?= htmlspecialchars((string)old('fecha', (string)($today ?? date('Y-m-d'))), ENT_QUOTES, 'UTF-8') ?>"
+        required>
+      <?php if (err('fecha')): ?><div class="err"><?= htmlspecialchars(err('fecha') ?? '', ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
     </div>
 
     <div style="margin-top:8px;">
       <label>Monto</label><br>
-      <input name="monto" inputmode="decimal" placeholder="0.00" required>
+      <input type="number" name="monto" min="0.01" step="0.01"
+        value="<?= htmlspecialchars((string)old('monto', ''), ENT_QUOTES, 'UTF-8') ?>"
+        placeholder="0.00" required>
+      <?php if (err('monto')): ?><div class="err"><?= htmlspecialchars(err('monto') ?? '', ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
     </div>
 
     <div style="margin-top:8px;">
       <label>Método (ej: efectivo, transferencia, tarjeta)</label><br>
-      <input name="metodo" maxlength="30" placeholder="efectivo">
+      <input name="metodo" maxlength="30"
+        value="<?= htmlspecialchars((string)old('metodo', ''), ENT_QUOTES, 'UTF-8') ?>"
+        placeholder="efectivo">
     </div>
 
     <div style="margin-top:8px;">
       <label>Referencia (nro comprobante)</label><br>
-      <input name="referencia" maxlength="100">
+      <input name="referencia" maxlength="100"
+        value="<?= htmlspecialchars((string)old('referencia', ''), ENT_QUOTES, 'UTF-8') ?>">
     </div>
 
     <div style="margin-top:8px;">
       <label>Nota</label><br>
-      <input name="nota" maxlength="255" style="width: 100%;">
+      <input name="nota" maxlength="255" style="width: 100%;"
+        value="<?= htmlspecialchars((string)old('nota', ''), ENT_QUOTES, 'UTF-8') ?>">
     </div>
 
     <div style="margin-top:12px;">

@@ -15,13 +15,26 @@ $pagado = 0.0;
 $saldo = 0.0;
 $estadoPago = 'pendiente';
 
-if (Auth::has('pagos.ver') && $id > 0) {
+// Solo calculamos pagos si el usuario tiene permiso de ver pagos (no filtrar info a roles sin permiso)
+$canSeePagos = Auth::has('pagos.ver');
+
+if ($canSeePagos && $id > 0) {
     $pagos = Pago::listByRef('factura', $id);
     $pagado = Pago::sumByRef('factura', $id);
     $saldo = round($total - $pagado, 2);
+
     if ($pagado <= 0.0) $estadoPago = 'pendiente';
     elseif (abs($pagado - $total) < 0.00001) $estadoPago = 'pagado';
     else $estadoPago = 'parcial';
+}
+
+$canRegistrarPago = (Auth::has('pagos.crear') && $estado === 'emitida');
+$canEliminarPago = (Auth::has('pagos.eliminar') && $estado !== 'anulada');
+$canAnular = (Auth::has('facturas.anular') && $estado !== 'anulada');
+
+// UX HITO 9B: ocultar "Anular" si se detectan pagos (solo cuando podemos calcularlos)
+if ($canSeePagos && $pagado > 0.00001) {
+    $canAnular = false;
 }
 ?>
 <!doctype html>
@@ -56,7 +69,7 @@ if (Auth::has('pagos.ver') && $id > 0) {
       </form>
     <?php endif; ?>
 
-    <?php if ($estado !== 'anulada' && Auth::has('facturas.anular')): ?>
+    <?php if ($canAnular): ?>
       <?php if ($estado === 'borrador' && Auth::has('facturas.emitir')): ?> | <?php endif; ?>
       <form method="post" action="/facturas/<?= $id ?>/anular" style="display:inline;">
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)Csrf::token(), ENT_QUOTES, 'UTF-8') ?>">
@@ -96,7 +109,7 @@ if (Auth::has('pagos.ver') && $id > 0) {
     </tbody>
   </table>
 
-  <?php if (Auth::has('pagos.ver')): ?>
+  <?php if ($canSeePagos): ?>
     <hr>
     <h2>Pagos</h2>
 
@@ -106,7 +119,7 @@ if (Auth::has('pagos.ver') && $id > 0) {
       <strong>Saldo:</strong> <?= htmlspecialchars(number_format(max(0.0, $saldo), 2, '.', ''), ENT_QUOTES, 'UTF-8') ?>
     </p>
 
-    <?php if (Auth::has('pagos.crear')): ?>
+    <?php if ($canRegistrarPago): ?>
       <p><a href="/pagos/crear?tipo_ref=factura&ref_id=<?= $id ?>">Registrar pago para esta factura</a></p>
     <?php endif; ?>
 
@@ -131,7 +144,7 @@ if (Auth::has('pagos.ver') && $id > 0) {
             <td><?= htmlspecialchars((string)($p['referencia'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
             <td><?= htmlspecialchars((string)($p['nota'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
             <td>
-              <?php if (Auth::has('pagos.eliminar')): ?>
+              <?php if ($canEliminarPago): ?>
                 <form method="post" action="/pagos/<?= $pid ?>/eliminar" style="display:inline;">
                   <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)Csrf::token(), ENT_QUOTES, 'UTF-8') ?>">
                   <button type="submit" onclick="return confirm('¿Eliminar pago?');">Eliminar</button>

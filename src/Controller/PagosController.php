@@ -139,15 +139,13 @@ final class PagosController
         Auth::requireLogin();
         Auth::can('pagos.crear');
 
-        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
-            Flash::set('error', 'Solicitud inválida (CSRF).');
-            $this->redirect303('/pagos/crear');
-        }
+        // Normalizar para old/errors
+        $errors = [];
 
         $tipoRef = trim((string)($_POST['tipo_ref'] ?? ''));
         if (!in_array($tipoRef, ['factura', 'compra'], true)) {
-            Flash::set('error', 'Tipo de referencia inválido.');
-            $this->redirect303('/pagos/crear');
+            $tipoRef = 'factura';
+            $errors['tipo_ref'] = 'Tipo de referencia inválido.';
         }
 
         $refId = 0;
@@ -157,50 +155,61 @@ final class PagosController
             $refId = (int)($_POST['ref_id_compra'] ?? 0);
         }
         if ($refId <= 0) {
-            Flash::set('error', 'Debe seleccionar una factura/compra válida.');
-            $this->redirect303('/pagos/crear?tipo_ref=' . $tipoRef);
+            $errors['ref_id'] = 'Debe seleccionar una factura/compra válida.';
         }
 
         $fecha = trim((string)($_POST['fecha'] ?? date('Y-m-d')));
         if (!$this->isValidDate($fecha)) {
-            Flash::set('error', 'Fecha inválida.');
-            $this->redirect303('/pagos/crear?tipo_ref=' . $tipoRef . '&ref_id=' . $refId);
+            $errors['fecha'] = 'Fecha inválida.';
         }
 
         $montoRaw = trim((string)($_POST['monto'] ?? ''));
         $montoStr = $this->normalizeDecimal($montoRaw);
-        if ($montoStr === null) {
-            Flash::set('error', 'Monto inválido.');
-            $this->redirect303('/pagos/crear?tipo_ref=' . $tipoRef . '&ref_id=' . $refId);
-        }
-        $monto = (float)$montoStr;
-        if ($monto <= 0) {
-            Flash::set('error', 'El monto debe ser mayor a 0.');
-            $this->redirect303('/pagos/crear?tipo_ref=' . $tipoRef . '&ref_id=' . $refId);
+        $monto = (float)($montoStr ?? 0);
+        if ($montoStr === null || $monto <= 0) {
+            $errors['monto'] = 'El monto debe ser mayor a 0.';
         }
 
         $metodo = trim((string)($_POST['metodo'] ?? ''));
-        if (mb_strlen($metodo) > 30) {
-            $metodo = mb_substr($metodo, 0, 30);
-        }
+        if (mb_strlen($metodo) > 30) $metodo = mb_substr($metodo, 0, 30);
 
         $referencia = trim((string)($_POST['referencia'] ?? ''));
         if ($referencia === '') $referencia = null;
-        if (is_string($referencia) && mb_strlen($referencia) > 100) {
-            $referencia = mb_substr($referencia, 0, 100);
-        }
+        if (is_string($referencia) && mb_strlen($referencia) > 100) $referencia = mb_substr($referencia, 0, 100);
 
         $nota = trim((string)($_POST['nota'] ?? ''));
         if ($nota === '') $nota = null;
-        if (is_string($nota) && mb_strlen($nota) > 255) {
-            $nota = mb_substr($nota, 0, 255);
+        if (is_string($nota) && mb_strlen($nota) > 255) $nota = mb_substr($nota, 0, 255);
+
+        $old = [
+            'tipo_ref' => $tipoRef,
+            'ref_id_factura' => (string)($_POST['ref_id_factura'] ?? ''),
+            'ref_id_compra' => (string)($_POST['ref_id_compra'] ?? ''),
+            'fecha' => $fecha,
+            'monto' => $montoRaw,
+            'metodo' => $metodo,
+            'referencia' => $referencia ?? '',
+            'nota' => $nota ?? '',
+        ];
+
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            Flash::setData('old', $old);
+            Flash::set('error', 'Solicitud inválida (CSRF).');
+            $this->redirect303('/pagos/crear?tipo_ref=' . urlencode($tipoRef) . ($refId > 0 ? '&ref_id=' . $refId : ''));
+        }
+
+        if (!empty($errors)) {
+            Flash::setData('old', $old);
+            Flash::setData('errors', $errors);
+            Flash::set('error', 'Revisa los campos marcados e intenta nuevamente.');
+            $this->redirect303('/pagos/crear?tipo_ref=' . urlencode($tipoRef) . ($refId > 0 ? '&ref_id=' . $refId : ''));
         }
 
         $pdo = Database::pdo();
         $pdo->beginTransaction();
 
         try {
-            // 1) Lock cabecera FOR UPDATE (serializa pagos concurrentes)
+            // Lock cabecera FOR UPDATE (concurrencia)
             if ($tipoRef === 'factura') {
                 $st = $pdo->prepare("SELECT id, numero, estado, total, tercero_id FROM facturas WHERE id = :id FOR UPDATE");
             } else {
@@ -208,18 +217,36 @@ final class PagosController
             }
             $st->execute([':id' => $refId]);
             $head = $st->fetch();
+
             if (!is_array($head)) {
-                throw new \RuntimeException('La referencia no existe.');
+                error_log('[pagos.create] referencia no existe: tipo=' . $tipoRef . ' ref_id=' . $refId . ' user=' . $this->userId());
+                Flash::setData('old', $old);
+                Flash::set('error', 'La referencia seleccionada no existe o fue eliminada.');
+                $pdo->rollBack();
+                $this->redirect303('/pagos/crear?tipo_ref=' . urlencode($tipoRef));
             }
 
             $estado = (string)($head['estado'] ?? '');
-            if ($estado === 'anulada') {
-                throw new \RuntimeException('No se permiten pagos sobre una entidad anulada.');
+
+            if ($estado !== 'emitida') {
+                $entidad = $tipoRef === 'factura' ? 'facturas' : 'compras';
+                Auditoria::log($this->userId(), 'pago_bloqueado', $entidad, (int)$refId, [
+                    'motivo' => 'estado_no_emitida',
+                    'estado' => $estado,
+                    'tipo_ref' => $tipoRef,
+                ]);
+
+                Flash::setData('old', $old);
+                Flash::set('error', $estado === 'anulada'
+                    ? 'No se permiten pagos sobre documentos anulados.'
+                    : 'Solo se pueden registrar pagos sobre documentos emitidos.');
+
+                $pdo->rollBack();
+                $this->redirect303('/pagos/crear?tipo_ref=' . urlencode($tipoRef) . '&ref_id=' . $refId);
             }
 
             $total = (float)($head['total'] ?? 0);
             if ($total <= 0) {
-                // Mantener fail-closed: no permitir pagos sin total coherente
                 throw new \RuntimeException('Total inválido en la referencia.');
             }
 
@@ -228,7 +255,7 @@ final class PagosController
                 throw new \RuntimeException('Tercero inválido en la referencia.');
             }
 
-            // 2) Recalcular sum dentro de transacción (bajo lock de cabecera)
+            // Sum pagos bajo la transacción
             $stSum = $pdo->prepare("
                 SELECT COALESCE(SUM(monto), 0) AS pagado
                 FROM pagos
@@ -241,13 +268,17 @@ final class PagosController
             $saldo = round($total - $pagado, 2);
             if ($saldo < 0) $saldo = 0.0;
 
-            // Comparación tolerante a redondeos mínimos
+            // Anti-sobrepago
             if ($monto > ($saldo + 0.00001)) {
-                throw new \RuntimeException('El monto excede el saldo pendiente (' . $this->formatDecimal($saldo) . ').');
+                Flash::setData('old', $old);
+                Flash::setData('errors', ['monto' => 'El monto excede el saldo pendiente (' . $this->formatDecimal($saldo) . ').']);
+                Flash::set('error', 'Revisa el monto e intenta nuevamente.');
+                $pdo->rollBack();
+                $this->redirect303('/pagos/crear?tipo_ref=' . urlencode($tipoRef) . '&ref_id=' . $refId);
             }
 
-            // 3) Insert pago (tercero_id se toma del documento, no del form)
-            $pagoId = \Erp2\Model\Pago::createWithPdo($pdo, [
+            // Insert pago
+            $pagoId = Pago::createWithPdo($pdo, [
                 'tipo_ref' => $tipoRef,
                 'ref_id' => $refId,
                 'tercero_id' => $terceroId,
@@ -269,16 +300,16 @@ final class PagosController
             ]);
 
             $pdo->commit();
-
             Flash::set('success', 'Pago registrado correctamente.');
-            // Redirige a la entidad para ver sección pagos
-            if ($tipoRef === 'factura') {
-                $this->redirect303('/facturas/' . $refId);
-            }
+
+            if ($tipoRef === 'factura') $this->redirect303('/facturas/' . $refId);
             $this->redirect303('/compras/' . $refId);
+
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
-            Flash::set('error', 'No se pudo registrar el pago: ' . $e->getMessage());
+            error_log('[pagos.create] error: ' . $e->getMessage() . ' tipo=' . $tipoRef . ' ref_id=' . $refId . ' user=' . $this->userId());
+            Flash::setData('old', $old);
+            Flash::set('error', 'No se pudo registrar el pago. Intenta nuevamente.');
             $this->redirect303('/pagos/crear?tipo_ref=' . urlencode($tipoRef) . '&ref_id=' . $refId);
         }
     }
@@ -309,7 +340,7 @@ final class PagosController
                 throw new \RuntimeException('Referencia inválida en el pago.');
             }
 
-            // Lock cabecera para evitar carreras con creación de pagos concurrentes
+            // Lock cabecera para evitar carreras
             if ($tipoRef === 'factura') {
                 $st = $pdo->prepare("SELECT id, estado FROM facturas WHERE id = :id FOR UPDATE");
             } else {
@@ -317,12 +348,23 @@ final class PagosController
             }
             $st->execute([':id' => $refId]);
             $head = $st->fetch();
+
             if (!is_array($head)) {
                 throw new \RuntimeException('La referencia ya no existe.');
             }
-            if ((string)($head['estado'] ?? '') === 'anulada') {
-                // Se podría permitir igual, pero mantenemos comportamiento estricto
-                throw new \RuntimeException('No se puede eliminar pago asociado a una entidad anulada.');
+
+            $estado = (string)($head['estado'] ?? '');
+
+            if ($estado === 'anulada') {
+                $entidad = $tipoRef === 'factura' ? 'facturas' : 'compras';
+                Auditoria::log($this->userId(), 'pago_eliminar_bloqueado', $entidad, (int)$refId, [
+                    'motivo' => 'entidad_anulada',
+                    'tipo_ref' => $tipoRef,
+                    'pago_id' => (int)$id,
+                ]);
+                $pdo->rollBack();
+                Flash::set('error', 'No se puede eliminar pagos de un documento anulado.');
+                $this->redirect303($tipoRef === 'factura' ? '/facturas/' . $refId : '/compras/' . $refId);
             }
 
             $ok = Pago::deleteByIdWithPdo($pdo, $id);
@@ -338,10 +380,13 @@ final class PagosController
 
             $pdo->commit();
             Flash::set('success', 'Pago eliminado.');
+
             if ($tipoRef === 'factura') $this->redirect303('/facturas/' . $refId);
             $this->redirect303('/compras/' . $refId);
+
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[pagos.delete] error: ' . $e->getMessage() . ' pago_id=' . $id . ' user=' . $this->userId());
             Flash::set('error', 'No se pudo eliminar: ' . $e->getMessage());
             $this->redirect303('/pagos');
         }

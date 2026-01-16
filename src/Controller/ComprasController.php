@@ -75,6 +75,8 @@ final class ComprasController
         Auth::requireLogin();
         Auth::can('compras.crear');
 
+        $errors = [];
+
         if (!Csrf::validate($_POST['_csrf'] ?? null)) {
             Flash::set('error', 'Solicitud inválida. Intenta nuevamente.');
             $this->redirect303('/compras/crear');
@@ -82,24 +84,39 @@ final class ComprasController
 
         $fecha = trim((string)($_POST['fecha'] ?? date('Y-m-d')));
         if (!$this->isValidDate($fecha)) {
+            $errors['fecha'] = 'Fecha inválida.';
             $fecha = date('Y-m-d');
         }
 
         $terceroId = (int)($_POST['tercero_id'] ?? 0);
         $tercero = $terceroId > 0 ? Tercero::find($terceroId) : null;
         if (!$tercero) {
-            Flash::set('error', 'Proveedor inválido o no existe.');
-            $this->redirect303('/compras/crear');
-        }
-        $tipoTercero = (string)($tercero['tipo'] ?? '');
-        if (!in_array($tipoTercero, ['proveedor', 'ambos'], true)) {
-            Flash::set('error', 'El tercero seleccionado no es proveedor.');
-            $this->redirect303('/compras/crear');
+            $errors['tercero_id'] = 'Proveedor inválido o no existe.';
+        } else {
+            $tipoTercero = (string)($tercero['tipo'] ?? '');
+            if (!in_array($tipoTercero, ['proveedor', 'ambos'], true)) {
+                $errors['tercero_id'] = 'El tercero seleccionado no es proveedor.';
+            }
         }
 
-        $lines = $this->readLines();
+        $lines = $this->readLines(); // ✅ NO tocar fix de servicios
         if (count($lines) < 1) {
-            Flash::set('error', 'Debe ingresar al menos 1 línea válida.');
+            $errors['lines'] = 'Debe ingresar al menos 1 línea válida.';
+        }
+
+        $old = [
+            'fecha' => $fecha,
+            'tercero_id' => (string)$terceroId,
+            'line_producto_id' => $_POST['line_producto_id'] ?? [],
+            'line_descripcion' => $_POST['line_descripcion'] ?? [],
+            'line_cantidad' => $_POST['line_cantidad'] ?? [],
+            'line_costo_unitario' => $_POST['line_costo_unitario'] ?? [],
+        ];
+
+        if (!empty($errors)) {
+            Flash::setData('old', $old);
+            Flash::setData('errors', $errors);
+            Flash::set('error', 'Revisa los campos marcados e intenta nuevamente.');
             $this->redirect303('/compras/crear');
         }
 
@@ -115,6 +132,19 @@ final class ComprasController
 
         $subtotal = round($subtotal, 2);
         $total = $subtotal;
+
+        // ✅ HITO 9B-C: coherencia total si viene por POST
+        $postedTotal = null;
+        if (isset($_POST['total'])) {
+            $pt = $this->normalizeDecimal((string)$_POST['total']);
+            if ($pt !== null) $postedTotal = (float)$pt;
+        }
+        if ($postedTotal !== null && abs($postedTotal - $total) > 0.01) {
+            Flash::setData('old', $old);
+            Flash::setData('errors', ['total' => 'Se detectó inconsistencia de totales. Revisa las líneas.']);
+            Flash::set('error', 'Se detectó inconsistencia de totales / revisa las líneas.');
+            $this->redirect303('/compras/crear');
+        }
 
         try {
             $compraId = Compra::createWithDetails(
@@ -137,7 +167,9 @@ final class ComprasController
 
             Flash::set('success', 'Compra creada correctamente.');
             $this->redirect303('/compras/' . $compraId);
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            error_log('[compras.create] error: ' . $e->getMessage() . ' user=' . $this->userId());
+            Flash::setData('old', $old);
             Flash::set('error', 'No se pudo crear la compra.');
             $this->redirect303('/compras/crear');
         }
@@ -189,12 +221,25 @@ final class ComprasController
             if (!$compra) {
                 throw new \RuntimeException('Compra no encontrada.');
             }
+
             $estado = (string)($compra['estado'] ?? '');
             if ($estado !== 'borrador') {
                 throw new \RuntimeException('Solo se puede emitir una compra en estado borrador.');
             }
 
-            // Detalles
+            // ✅ Recalcular subtotal_linea y total desde DB
+            $pdo->prepare("UPDATE compra_detalles SET subtotal_linea = ROUND(cantidad * costo_unitario, 2) WHERE compra_id = :cid")
+                ->execute([':cid' => $id]);
+
+            $stSum = $pdo->prepare("SELECT COALESCE(SUM(subtotal_linea), 0) FROM compra_detalles WHERE compra_id = :cid");
+            $stSum->execute([':cid' => $id]);
+            $totalCalc = round((float)$stSum->fetchColumn(), 2);
+
+            if ($totalCalc <= 0) {
+                throw new \RuntimeException('Total inválido: la compra debe tener líneas válidas con total mayor a 0.');
+            }
+
+            // Detalles para stock
             $stD = $pdo->prepare("
                 SELECT id, producto_id, descripcion, cantidad, costo_unitario, subtotal_linea
                 FROM compra_detalles
@@ -207,25 +252,21 @@ final class ComprasController
                 throw new \RuntimeException('La compra debe tener al menos una línea.');
             }
 
-            // Por cada línea con producto_id: entrada al stock si tipo=producto
             foreach ($detalles as $ln) {
                 $productoId = $ln['producto_id'] ?? null;
-                if ($productoId === null) {
-                    continue;
-                }
+                if ($productoId === null) continue;
 
                 $cantidad = (float)($ln['cantidad'] ?? 0);
-                if ($cantidad <= 0) {
-                    throw new \RuntimeException('Cantidad inválida en una línea.');
-                }
+                $costo = (float)($ln['costo_unitario'] ?? 0);
+
+                if ($cantidad <= 0) throw new \RuntimeException('Cantidad inválida en una línea.');
+                if ($costo < 0) throw new \RuntimeException('Costo inválido en una línea.');
 
                 // Lock producto
                 $stP = $pdo->prepare("SELECT id, tipo, stock_actual, estado FROM productos WHERE id = :pid FOR UPDATE");
                 $stP->execute([':pid' => (int)$productoId]);
                 $p = $stP->fetch();
-                if (!$p) {
-                    throw new \RuntimeException('Producto no existe (id ' . (int)$productoId . ').');
-                }
+                if (!$p) throw new \RuntimeException('Producto no existe (id ' . (int)$productoId . ').');
 
                 if ((string)($p['tipo'] ?? '') !== 'producto') {
                     continue; // servicios no afectan stock
@@ -254,22 +295,33 @@ final class ComprasController
                 );
             }
 
-            // Emitir compra
-            $upC = $pdo->prepare("UPDATE compras SET estado = 'emitida', updated_at = NOW() WHERE id = :id");
-            $upC->execute([':id' => $id]);
+            // ✅ Emitir + fijar totales calculados (sin repetir placeholders)
+            $upC = $pdo->prepare("
+                UPDATE compras
+                SET subtotal = :sub, total = :tot, estado = 'emitida', updated_at = NOW()
+                WHERE id = :id
+            ");
+
+            $val = $this->formatDecimal($totalCalc);
+            $upC->execute([
+                ':sub' => $val,
+                ':tot' => $val,
+                ':id'  => $id,
+            ]);
 
             Auditoria::log($usuarioId, 'emitir', 'compras', (int)$id, [
                 'estado_anterior' => 'borrador',
                 'estado_nuevo' => 'emitida',
+                'total' => $this->formatDecimal($totalCalc),
             ]);
 
             $pdo->commit();
             Flash::set('success', 'Compra emitida correctamente.');
             $this->redirect303('/compras/' . $id);
+
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[compras.emitir] error: ' . $e->getMessage() . ' id=' . $id . ' user=' . $usuarioId);
             Flash::set('error', 'No se pudo emitir: ' . $e->getMessage());
             $this->redirect303('/compras/' . $id);
         }
@@ -305,6 +357,22 @@ final class ComprasController
                 $this->redirect303('/compras/' . $id);
             }
 
+            // ✅ HITO 9B-B: NO permitir anular si existen pagos aplicados
+            $stPagado = $pdo->prepare("SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE tipo_ref = 'compra' AND ref_id = :rid");
+            $stPagado->execute([':rid' => $id]);
+            $pagado = (float)$stPagado->fetchColumn();
+
+            if ($pagado > 0.00001) {
+                Auditoria::log($usuarioId, 'anular_bloqueado', 'compras', (int)$id, [
+                    'motivo' => 'tiene_pagos',
+                    'estado' => $estado,
+                    'pagado' => $this->formatDecimal($pagado),
+                ]);
+                $pdo->rollBack();
+                Flash::set('error', 'No se puede anular una compra con pagos aplicados.');
+                $this->redirect303('/compras/' . $id);
+            }
+
             // Si emitida: reversar stock con SALIDA, evitando negativos
             if ($estado === 'emitida') {
                 $stD = $pdo->prepare("
@@ -318,25 +386,17 @@ final class ComprasController
 
                 foreach ($detalles as $ln) {
                     $productoId = $ln['producto_id'] ?? null;
-                    if ($productoId === null) {
-                        continue;
-                    }
+                    if ($productoId === null) continue;
 
                     $cantidad = (float)($ln['cantidad'] ?? 0);
-                    if ($cantidad <= 0) {
-                        throw new \RuntimeException('Cantidad inválida en una línea.');
-                    }
+                    if ($cantidad <= 0) throw new \RuntimeException('Cantidad inválida en una línea.');
 
                     $stP = $pdo->prepare("SELECT id, tipo, stock_actual, estado FROM productos WHERE id = :pid FOR UPDATE");
                     $stP->execute([':pid' => (int)$productoId]);
                     $p = $stP->fetch();
-                    if (!$p) {
-                        throw new \RuntimeException('Producto no existe (id ' . (int)$productoId . ').');
-                    }
+                    if (!$p) throw new \RuntimeException('Producto no existe (id ' . (int)$productoId . ').');
 
-                    if ((string)($p['tipo'] ?? '') !== 'producto') {
-                        continue; // servicios no afectan stock
-                    }
+                    if ((string)($p['tipo'] ?? '') !== 'producto') continue; // servicios no afectan stock
 
                     $stockAnterior = (float)($p['stock_actual'] ?? 0);
                     $stockNuevo = $stockAnterior - $cantidad;
@@ -363,7 +423,7 @@ final class ComprasController
                 }
             }
 
-            // Anular compra (para borrador y emitida)
+            // Anular compra
             $upC = $pdo->prepare("UPDATE compras SET estado = 'anulada', updated_at = NOW() WHERE id = :id");
             $upC->execute([':id' => $id]);
 
@@ -375,10 +435,10 @@ final class ComprasController
             $pdo->commit();
             Flash::set('success', 'Compra anulada correctamente.');
             $this->redirect303('/compras/' . $id);
+
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[compras.anular] error: ' . $e->getMessage() . ' id=' . $id . ' user=' . $usuarioId);
             Flash::set('error', 'No se pudo anular: ' . $e->getMessage());
             $this->redirect303('/compras/' . $id);
         }
