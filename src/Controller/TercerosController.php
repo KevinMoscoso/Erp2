@@ -70,22 +70,71 @@ final class TercerosController
         }
 
         $data = $this->readTerceroInput();
+
+        // Old input (para repoblar)
+        $old = [
+            'tipo' => (string)($data['tipo'] ?? ''),
+            'nombre_comercial' => (string)($data['nombre_comercial'] ?? ''),
+            'identificacion' => (string)($data['identificacion'] ?? ''),
+            'email' => (string)($data['email'] ?? ''),
+        ];
+
+        // Errores por campo (mínimos, sin reescribir validateTercero())
+        $errors = [];
+
+        $tipo = trim((string)($data['tipo'] ?? ''));
+        if (!in_array($tipo, ['cliente', 'proveedor', 'ambos'], true)) {
+            $errors['tipo'] = 'Tipo inválido.';
+        }
+
+        $nombre = trim((string)($data['nombre_comercial'] ?? ''));
+        if ($nombre === '') {
+            $errors['nombre_comercial'] = 'El nombre comercial es obligatorio.';
+        } elseif (mb_strlen($nombre) > 160) {
+            $errors['nombre_comercial'] = 'Máximo 160 caracteres.';
+        }
+
+        $ident = trim((string)($data['identificacion'] ?? ''));
+        if ($ident !== '' && mb_strlen($ident) > 30) {
+            $errors['identificacion'] = 'Máximo 30 caracteres.';
+        }
+
+        $email = trim((string)($data['email'] ?? ''));
+        if ($email !== '' && mb_strlen($email) > 190) {
+            $errors['email'] = 'Máximo 190 caracteres.';
+        } elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = 'Email inválido.';
+        }
+
+        // Validación existente (mantener reglas previas)
         $err = $this->validateTercero($data);
-        if ($err !== null) {
-            Flash::set('error', $err);
+        if ($err !== null || !empty($errors)) {
+            Flash::setData('old', $old);
+            if (!empty($errors)) {
+                Flash::setData('errors', $errors);
+            }
+            Flash::set('error', $err ?? 'Revisa los campos marcados e intenta nuevamente.');
             header('Location: /terceros/crear', true, 303);
             exit;
         }
 
-        $id = Tercero::create($data);
+        try {
+            $id = Tercero::create($data);
 
-        Auditoria::log($this->userId(), 'crear', 'terceros', $id, [
-            'data' => $data,
-        ]);
+            Auditoria::log($this->userId(), 'crear', 'terceros', $id, [
+                'data' => $data,
+            ]);
 
-        Flash::set('success', 'Tercero creado correctamente.');
-        header('Location: /terceros/' . $id, true, 303);
-        exit;
+            Flash::set('success', 'Tercero creado correctamente.');
+            header('Location: /terceros/' . $id, true, 303);
+            exit;
+        } catch (\Throwable $e) {
+            error_log('[terceros.create] error: ' . $e->getMessage() . ' user=' . $this->userId());
+            Flash::setData('old', $old);
+            Flash::set('error', 'No se pudo crear el tercero.');
+            header('Location: /terceros/crear', true, 303);
+            exit;
+        }
     }
 
     public function show(int $id): void
@@ -205,28 +254,52 @@ final class TercerosController
     public function createContacto(int $id): void
     {
         \Erp2\Core\Auth::requireLogin();
-        // Ajusta el permiso al que uses para editar terceros:
         \Erp2\Core\Auth::can('terceros.editar');
 
-        if (!\Erp2\Core\Csrf::validate($_POST['_csrf'] ?? null)) {
-            \Erp2\Core\Flash::set('error', 'Solicitud inválida (CSRF).');
-            header('Location: /terceros/' . $id, true, 303);
-            exit;
-        }
-
-        $nombres  = trim((string)($_POST['nombres'] ?? ($_POST['nombre'] ?? ''))); // soporta ambos
+        $nombres  = trim((string)($_POST['nombres'] ?? ($_POST['nombre'] ?? '')));
         $email    = trim((string)($_POST['email'] ?? ''));
         $telefono = trim((string)($_POST['telefono'] ?? ''));
         $cargo    = trim((string)($_POST['cargo'] ?? ''));
         $notas    = trim((string)($_POST['notas'] ?? ''));
 
-        if ($nombres === '' || mb_strlen($nombres) > 160) {
-            \Erp2\Core\Flash::set('error', 'El nombre del contacto es obligatorio (máx. 160).');
+        $old = [
+            'nombres' => $nombres,
+            'nombre' => $nombres, // alias retro
+            'email' => $email,
+            'telefono' => $telefono,
+            'cargo' => $cargo,
+            'notas' => $notas,
+        ];
+
+        if (!\Erp2\Core\Csrf::validate($_POST['_csrf'] ?? null)) {
+            \Erp2\Core\Flash::setData('old', $old);
+            \Erp2\Core\Flash::set('error', 'Solicitud inválida (CSRF).');
             header('Location: /terceros/' . $id, true, 303);
             exit;
         }
+
+        $errors = [];
+        if ($nombres === '' || mb_strlen($nombres) > 160) {
+            $errors['nombres'] = 'El nombre del contacto es obligatorio (máx. 160).';
+            $errors['nombre'] = $errors['nombres']; // fallback
+        }
         if ($email !== '' && mb_strlen($email) > 190) {
-            \Erp2\Core\Flash::set('error', 'Email demasiado largo (máx. 190).');
+            $errors['email'] = 'Email demasiado largo (máx. 190).';
+        }
+        if ($telefono !== '' && mb_strlen($telefono) > 30) {
+            $errors['telefono'] = 'Teléfono demasiado largo (máx. 30).';
+        }
+        if ($cargo !== '' && mb_strlen($cargo) > 80) {
+            $errors['cargo'] = 'Cargo demasiado largo (máx. 80).';
+        }
+        if ($notas !== '' && mb_strlen($notas) > 255) {
+            $errors['notas'] = 'Notas demasiado largas (máx. 255).';
+        }
+
+        if (!empty($errors)) {
+            \Erp2\Core\Flash::setData('old', $old);
+            \Erp2\Core\Flash::setData('errors', $errors);
+            \Erp2\Core\Flash::set('error', 'Revisa los campos marcados e intenta nuevamente.');
             header('Location: /terceros/' . $id, true, 303);
             exit;
         }
@@ -234,7 +307,6 @@ final class TercerosController
         $pdo = \Erp2\Core\Database::pdo();
 
         try {
-            // Validar tercero existe
             $stT = $pdo->prepare("SELECT id FROM terceros WHERE id = :id LIMIT 1");
             $stT->execute([':id' => $id]);
             $ter = $stT->fetch();
@@ -272,7 +344,9 @@ final class TercerosController
             exit;
 
         } catch (\Throwable $e) {
-            \Erp2\Core\Flash::set('error', 'Error al crear contacto: ' . $e->getMessage());
+            error_log('[terceros.contactos.create] error: ' . $e->getMessage() . ' tercero_id=' . $id);
+            \Erp2\Core\Flash::setData('old', $old);
+            \Erp2\Core\Flash::set('error', 'Error al crear contacto.');
             header('Location: /terceros/' . $id, true, 303);
             exit;
         }

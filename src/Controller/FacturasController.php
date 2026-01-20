@@ -305,11 +305,13 @@ final class FacturasController
             // ✅ Emitir + fijar totales calculados
             $upF = $pdo->prepare("
                 UPDATE facturas
-                SET subtotal = :t, total = :t, estado = 'emitida', updated_at = NOW()
-                WHERE id = :id
-            ");
+                SET subtotal = :sub, total = :tot, estado = 'emitida', updated_at = NOW()
+                WHERE id = :id");
             $val = $this->formatDecimal($totalCalc);
-            $upF->execute([':t' => $val, ':id' => $id]);
+            $upF->execute([
+                ':sub' => $val,
+                ':tot' => $val,
+                ':id'  => $id,]);
 
             Auditoria::log(
                 $usuarioId,

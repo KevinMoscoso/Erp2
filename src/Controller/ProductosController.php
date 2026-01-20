@@ -72,9 +72,46 @@ final class ProductosController
         }
 
         $data = $this->readInput();
+
+        $old = [
+            'tipo' => (string)($data['tipo'] ?? ''),
+            'referencia' => (string)($data['referencia'] ?? ''),
+            'nombre' => (string)($data['nombre'] ?? ''),
+            'descripcion' => (string)($data['descripcion'] ?? ''),
+            'precio_venta' => (string)($data['precio_venta'] ?? ''),
+            'costo' => (string)($data['costo'] ?? ''),
+        ];
+
+        $errors = [];
+
+        $tipo = trim((string)($data['tipo'] ?? ''));
+        if (!in_array($tipo, ['producto', 'servicio'], true)) {
+            $errors['tipo'] = 'Tipo inválido.';
+        }
+
+        $ref = trim((string)($data['referencia'] ?? ''));
+        if ($ref === '') $errors['referencia'] = 'La referencia es obligatoria.';
+        elseif (mb_strlen($ref) > 64) $errors['referencia'] = 'Máximo 64 caracteres.';
+
+        $nombre = trim((string)($data['nombre'] ?? ''));
+        if ($nombre === '') $errors['nombre'] = 'El nombre es obligatorio.';
+        elseif (mb_strlen($nombre) > 160) $errors['nombre'] = 'Máximo 160 caracteres.';
+
+        $pv = trim((string)($data['precio_venta'] ?? ''));
+        if ($pv === '' || !is_numeric(str_replace(',', '.', $pv)) || (float)str_replace(',', '.', $pv) <= 0) {
+            $errors['precio_venta'] = 'El precio de venta debe ser mayor a 0.';
+        }
+
+        $costo = trim((string)($data['costo'] ?? ''));
+        if ($costo !== '' && (!is_numeric(str_replace(',', '.', $costo)) || (float)str_replace(',', '.', $costo) < 0)) {
+            $errors['costo'] = 'El costo debe ser mayor o igual a 0.';
+        }
+
         $err = $this->validate($data);
-        if ($err !== null) {
-            Flash::set('error', $err);
+        if ($err !== null || !empty($errors)) {
+            Flash::setData('old', $old);
+            if (!empty($errors)) Flash::setData('errors', $errors);
+            Flash::set('error', $err ?? 'Revisa los campos marcados e intenta nuevamente.');
             header('Location: /productos/crear', true, 303);
             exit;
         }
@@ -89,13 +126,18 @@ final class ProductosController
             Flash::set('success', 'Producto/servicio creado correctamente.');
             header('Location: /productos/' . $id, true, 303);
             exit;
+
         } catch (PDOException $e) {
+            Flash::setData('old', $old);
+
             if ($this->isDuplicateKey($e)) {
+                Flash::setData('errors', ['referencia' => 'La referencia ya existe. Usa una referencia única.']);
                 Flash::set('error', 'La referencia ya existe. Usa una referencia única.');
                 header('Location: /productos/crear', true, 303);
                 exit;
             }
 
+            error_log('[productos.create] error: ' . $e->getMessage() . ' user=' . $this->userId());    
             Flash::set('error', 'No se pudo crear el registro.');
             header('Location: /productos/crear', true, 303);
             exit;
@@ -142,6 +184,7 @@ final class ProductosController
             'producto' => $producto,
             'csrf' => Csrf::token(),
             'error' => Flash::get('error'),
+            'success' => Flash::get('success'),
         ]);
     }
 
@@ -165,9 +208,46 @@ final class ProductosController
         }
 
         $data = $this->readInput();
+
+        $old = [
+            'tipo' => (string)($data['tipo'] ?? ''),
+            'referencia' => (string)($data['referencia'] ?? ''),
+            'nombre' => (string)($data['nombre'] ?? ''),
+            'descripcion' => (string)($data['descripcion'] ?? ''),
+            'precio_venta' => (string)($data['precio_venta'] ?? ''),
+            'costo' => (string)($data['costo'] ?? ''),
+        ];
+
+        $errors = [];
+
+        $tipo = trim((string)($data['tipo'] ?? ''));
+        if (!in_array($tipo, ['producto', 'servicio'], true)) {
+            $errors['tipo'] = 'Tipo inválido.';
+        }
+
+        $ref = trim((string)($data['referencia'] ?? ''));
+        if ($ref === '') $errors['referencia'] = 'La referencia es obligatoria.';
+        elseif (mb_strlen($ref) > 64) $errors['referencia'] = 'Máximo 64 caracteres.';
+
+        $nombre = trim((string)($data['nombre'] ?? ''));
+        if ($nombre === '') $errors['nombre'] = 'El nombre es obligatorio.';
+        elseif (mb_strlen($nombre) > 160) $errors['nombre'] = 'Máximo 160 caracteres.';
+
+        $pv = trim((string)($data['precio_venta'] ?? ''));
+        if ($pv === '' || !is_numeric(str_replace(',', '.', $pv)) || (float)str_replace(',', '.', $pv) <= 0) {
+            $errors['precio_venta'] = 'El precio de venta debe ser mayor a 0.';
+        }
+
+        $costo = trim((string)($data['costo'] ?? ''));
+        if ($costo !== '' && (!is_numeric(str_replace(',', '.', $costo)) || (float)str_replace(',', '.', $costo) < 0)) {
+            $errors['costo'] = 'El costo debe ser mayor o igual a 0.';
+        }
+
         $err = $this->validate($data);
-        if ($err !== null) {
-            Flash::set('error', $err);
+        if ($err !== null || !empty($errors)) {
+            Flash::setData('old', $old);
+            if (!empty($errors)) Flash::setData('errors', $errors);
+            Flash::set('error', $err ?? 'Revisa los campos marcados e intenta nuevamente.');
             header('Location: /productos/' . $id . '/editar', true, 303);
             exit;
         }
@@ -182,13 +262,18 @@ final class ProductosController
             Flash::set('success', 'Producto/servicio actualizado correctamente.');
             header('Location: /productos/' . $id, true, 303);
             exit;
+
         } catch (PDOException $e) {
+            Flash::setData('old', $old);
+
             if ($this->isDuplicateKey($e)) {
+                Flash::setData('errors', ['referencia' => 'La referencia ya existe. Usa una referencia única.']);
                 Flash::set('error', 'La referencia ya existe. Usa una referencia única.');
                 header('Location: /productos/' . $id . '/editar', true, 303);
                 exit;
             }
 
+            error_log('[productos.update] error: ' . $e->getMessage() . ' user=' . $this->userId());
             Flash::set('error', 'No se pudo actualizar el registro.');
             header('Location: /productos/' . $id . '/editar', true, 303);
             exit;

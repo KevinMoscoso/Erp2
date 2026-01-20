@@ -1,9 +1,27 @@
+<?php
+declare(strict_types=1);
+
+$t = is_array($tercero ?? null) ? (array)$tercero : [];
+$id = (int)($t['id'] ?? 0);
+
+$oldNombres  = (string)old('nombres', (string)old('nombre', ''));
+$oldEmail    = (string)old('email', '');
+$oldTelefono = (string)old('telefono', '');
+$oldCargo    = (string)old('cargo', '');
+$oldNotas    = (string)old('notas', '');
+
+$errNombres = err('nombres') ?: err('nombre');
+?>
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <title><?= htmlspecialchars($title ?? 'Tercero', ENT_QUOTES, 'UTF-8') ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    .err{color:#b00020;font-size:0.92em;margin-top:4px;}
+    .input-err{border:1px solid #b00020;}
+  </style>
 </head>
 <body>
   <p><a href="/terceros">← Volver</a></p>
@@ -15,8 +33,6 @@
   <?php if (!empty($success)): ?>
     <p style="color:#0b6b0b;"><?= htmlspecialchars((string)$success, ENT_QUOTES, 'UTF-8') ?></p>
   <?php endif; ?>
-
-  <?php $t = $tercero ?? []; $id = (int)($t['id'] ?? 0); ?>
 
   <h1>Tercero #<?= htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8') ?></h1>
 
@@ -84,22 +100,66 @@
 
   <?php if (\Erp2\Core\Auth::has('terceros.editar')): ?>
     <h3 style="margin-top:16px;">Agregar contacto</h3>
+
+    <?php if (err('contacto')): ?>
+      <p class="err"><?= htmlspecialchars((string)err('contacto'), ENT_QUOTES, 'UTF-8') ?></p>
+    <?php endif; ?>
+
     <form method="post" action="/terceros/<?= $id ?>/contactos/crear">
       <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrf ?? ''), ENT_QUOTES, 'UTF-8') ?>">
 
       <div>
-        <label for="nombre">Nombre</label><br>
-        <input id="nombre" name="nombre" required maxlength="160">
+        <label for="nombres">Nombre</label><br>
+        <input id="nombres" name="nombres" required maxlength="160"
+               value="<?= htmlspecialchars($oldNombres, ENT_QUOTES, 'UTF-8') ?>"
+               class="<?= ($errNombres !== null) ? 'input-err' : '' ?>">
+
+        <!-- Alias retro-compatible por si algún controlador/old usa 'nombre' -->
+        <input type="hidden" name="nombre" value="<?= htmlspecialchars($oldNombres, ENT_QUOTES, 'UTF-8') ?>">
+
+        <?php if ($errNombres): ?>
+          <div class="err"><?= htmlspecialchars((string)$errNombres, ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
       </div>
 
       <div style="margin-top:8px;">
         <label for="email">Email</label><br>
-        <input id="email" name="email" type="email" maxlength="190">
+        <input id="email" name="email" type="email" maxlength="190"
+               value="<?= htmlspecialchars($oldEmail, ENT_QUOTES, 'UTF-8') ?>"
+               class="<?= hasErr('email') ? 'input-err' : '' ?>">
+        <?php if (err('email')): ?>
+          <div class="err"><?= htmlspecialchars((string)err('email'), ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
       </div>
 
       <div style="margin-top:8px;">
         <label for="telefono">Teléfono</label><br>
-        <input id="telefono" name="telefono" maxlength="30">
+        <input id="telefono" name="telefono" maxlength="30"
+               value="<?= htmlspecialchars($oldTelefono, ENT_QUOTES, 'UTF-8') ?>"
+               class="<?= hasErr('telefono') ? 'input-err' : '' ?>">
+        <?php if (err('telefono')): ?>
+          <div class="err"><?= htmlspecialchars((string)err('telefono'), ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
+      </div>
+
+      <div style="margin-top:8px;">
+        <label for="cargo">Cargo (opcional)</label><br>
+        <input id="cargo" name="cargo" maxlength="80"
+               value="<?= htmlspecialchars($oldCargo, ENT_QUOTES, 'UTF-8') ?>"
+               class="<?= hasErr('cargo') ? 'input-err' : '' ?>">
+        <?php if (err('cargo')): ?>
+          <div class="err"><?= htmlspecialchars((string)err('cargo'), ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
+      </div>
+
+      <div style="margin-top:8px;">
+        <label for="notas">Notas (opcional)</label><br>
+        <input id="notas" name="notas" maxlength="255"
+               value="<?= htmlspecialchars($oldNotas, ENT_QUOTES, 'UTF-8') ?>"
+               class="<?= hasErr('notas') ? 'input-err' : '' ?>" style="width:100%;">
+        <?php if (err('notas')): ?>
+          <div class="err"><?= htmlspecialchars((string)err('notas'), ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
       </div>
 
       <div style="margin-top:12px;">
