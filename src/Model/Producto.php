@@ -21,20 +21,21 @@ final class Producto
             return $stmt->fetchAll();
         }
 
+        // Evitar HY093: PDO (MySQL) no tolera placeholders nombrados repetidos en un mismo statement.
         $like = '%' . $q . '%';
         $stmt = $pdo->prepare('
             SELECT *
             FROM productos
             WHERE estado = 1
               AND (
-                referencia LIKE :q
-                OR nombre LIKE :q
-                OR descripcion LIKE :q
+                referencia LIKE :q1
+                OR nombre LIKE :q2
+                OR descripcion LIKE :q3
               )
             ORDER BY id DESC
             LIMIT 200
         ');
-        $stmt->execute([':q' => $like]);
+        $stmt->execute([':q1' => $like, ':q2' => $like, ':q3' => $like]);
 
         return $stmt->fetchAll();
     }

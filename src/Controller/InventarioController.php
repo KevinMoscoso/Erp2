@@ -31,9 +31,11 @@ final class InventarioController
         ";
         $params = [];
 
+        // ✅ FIX HY093 preventivo: NO repetir :q en el mismo statement
         if ($q !== '') {
-            $sql .= " AND (referencia LIKE :q OR nombre LIKE :q)";
-            $params[':q'] = '%' . $q . '%';
+            $sql .= " AND (referencia LIKE :q1 OR nombre LIKE :q2)";
+            $params[':q1'] = '%' . $q . '%';
+            $params[':q2'] = '%' . $q . '%';
         }
 
         $sql .= " ORDER BY id DESC";
@@ -83,23 +85,46 @@ final class InventarioController
         Auth::requireLogin();
         Auth::can('inventario.ajustar');
 
-        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
-            Flash::set('error', 'Solicitud inválida (CSRF).');
-            $this->redirect('/inventario/' . $id);
-        }
-
-        $accion = (string)($_POST['accion'] ?? ''); // sumar|restar
+        // Normalizar OLD para repoblar en caso de error
+        $accion = (string)($_POST['accion'] ?? '');
         $cantidadRaw = trim((string)($_POST['cantidad'] ?? ''));
         $nota = trim((string)($_POST['nota'] ?? ''));
 
-        $cantidad = is_numeric($cantidadRaw) ? (float)$cantidadRaw : 0.0;
-        if (!in_array($accion, ['sumar', 'restar'], true)) {
-            Flash::set('error', 'Acción inválida.');
-            $this->redirect('/inventario/' . $id);
+        $old = [
+            'accion' => $accion,
+            'cantidad' => $cantidadRaw,
+            'nota' => $nota,
+        ];
+
+        // CSRF primero
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            Flash::setData('old', $old);
+            Flash::set('error', 'Solicitud inválida (CSRF).');
+            $this->redirect303('/inventario/' . $id);
         }
-        if ($cantidad <= 0) {
-            Flash::set('error', 'La cantidad debe ser mayor a 0.');
-            $this->redirect('/inventario/' . $id);
+
+        // Validaciones por campo (UX consistente)
+        $errors = [];
+
+        if (!in_array($accion, ['sumar', 'restar'], true)) {
+            $errors['accion'] = 'Acción inválida.';
+        }
+
+        $cantidadStr = $this->normalizeDecimal($cantidadRaw);
+        $cantidad = (float)($cantidadStr ?? 0.0);
+        if ($cantidadStr === null || $cantidad <= 0) {
+            $errors['cantidad'] = 'La cantidad debe ser mayor a 0.';
+        }
+
+        if (mb_strlen($nota) > 255) {
+            $errors['nota'] = 'La nota no debe exceder 255 caracteres.';
+        }
+
+        if (!empty($errors)) {
+            Flash::setData('old', $old);
+            Flash::setData('errors', $errors);
+            Flash::set('error', 'Revisa los campos marcados e intenta nuevamente.');
+            $this->redirect303('/inventario/' . $id);
         }
 
         $user = Auth::user();
@@ -160,7 +185,6 @@ final class InventarioController
                 null
             );
 
-            // Auditoría (mínima)
             Auditoria::log(
                 $usuarioId,
                 'ajustar',
@@ -176,19 +200,32 @@ final class InventarioController
 
             $pdo->commit();
             Flash::set('success', 'Stock ajustado correctamente.');
-            $this->redirect('/inventario/' . $id);
+            $this->redirect303('/inventario/' . $id);
+
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
+            error_log('[inventario.ajustar] ' . $e->getMessage() . ' producto_id=' . $id . ' user=' . $usuarioId);
+
+            Flash::setData('old', $old);
             Flash::set('error', 'No se pudo ajustar inventario: ' . $e->getMessage());
-            $this->redirect('/inventario/' . $id);
+            $this->redirect303('/inventario/' . $id);
         }
     }
 
-    private function redirect(string $to): void
+    private function normalizeDecimal(string $value): ?string
     {
-        header('Location: ' . $to);
+        $value = trim($value);
+        if ($value === '') return null;
+        $value = str_replace(',', '.', $value);
+        if (!preg_match('/^\d+(\.\d+)?$/', $value)) return null;
+        return $value;
+    }
+
+    private function redirect303(string $to): void
+    {
+        header('Location: ' . $to, true, 303);
         exit;
     }
 }

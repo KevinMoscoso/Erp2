@@ -53,85 +53,96 @@ final class PagosController
         Auth::requireLogin();
         Auth::can('pagos.crear');
 
-        $tipoRef = trim((string)($_GET['tipo_ref'] ?? ''));
-        $refId = (int)($_GET['ref_id'] ?? 0);
+        try {
+            $tipoRef = trim((string)($_GET['tipo_ref'] ?? ''));
+            $refId = (int)($_GET['ref_id'] ?? 0);
 
-        if (!in_array($tipoRef, ['factura', 'compra'], true)) {
-            $tipoRef = 'factura';
-        }
-        if ($refId < 0) $refId = 0;
-
-        $pdo = Database::pdo();
-
-        // Listas rápidas para selects
-        $facturas = $pdo->query("
-            SELECT id, numero, estado, total, tercero_id
-            FROM facturas
-            ORDER BY id DESC
-            LIMIT 200
-        ")->fetchAll();
-
-        $compras = $pdo->query("
-            SELECT id, numero, estado, total, tercero_id
-            FROM compras
-            ORDER BY id DESC
-            LIMIT 200
-        ")->fetchAll();
-
-        $terceros = Tercero::search('');
-
-        // Info opcional si viene preseleccionado
-        $selected = null;
-        if ($refId > 0) {
-            if ($tipoRef === 'factura') {
-                $st = $pdo->prepare("SELECT id, numero, estado, total, tercero_id FROM facturas WHERE id = :id");
-                $st->execute([':id' => $refId]);
-                $selected = $st->fetch();
-            } else {
-                $st = $pdo->prepare("SELECT id, numero, estado, total, tercero_id FROM compras WHERE id = :id");
-                $st->execute([':id' => $refId]);
-                $selected = $st->fetch();
+            if (!in_array($tipoRef, ['factura', 'compra'], true)) {
+                $tipoRef = 'factura';
             }
-        }
+            if ($refId < 0) $refId = 0;
 
-        $selectedInfo = null;
-        if (is_array($selected)) {
-            $total = (float)($selected['total'] ?? 0);
-            $pagado = Pago::sumByRef($tipoRef, (int)($selected['id'] ?? 0));
-            $saldo = round($total - $pagado, 2);
+            $pdo = Database::pdo();
 
-            $terceroId = (int)($selected['tercero_id'] ?? 0);
-            $terceroNombre = '';
-            foreach ($terceros as $t) {
-                if ((int)($t['id'] ?? 0) === $terceroId) {
-                    $terceroNombre = (string)($t['nombre_comercial'] ?? '');
-                    break;
+            // ✅ Listas para selects: solo emitidas (UX consistente con regla 9B)
+            $stF = $pdo->query("
+                SELECT id, numero, estado, total, tercero_id
+                FROM facturas
+                WHERE estado = 'emitida'
+                ORDER BY id DESC
+                LIMIT 200
+            ");
+            $facturas = $stF ? $stF->fetchAll() : [];
+
+            $stC = $pdo->query("
+                SELECT id, numero, estado, total, tercero_id
+                FROM compras
+                WHERE estado = 'emitida'
+                ORDER BY id DESC
+                LIMIT 200
+            ");
+            $compras = $stC ? $stC->fetchAll() : [];
+
+            $terceros = Tercero::search('');
+
+            // Info opcional si viene preseleccionado
+            $selected = null;
+            if ($refId > 0) {
+                if ($tipoRef === 'factura') {
+                    $st = $pdo->prepare("SELECT id, numero, estado, total, tercero_id FROM facturas WHERE id = :id");
+                    $st->execute([':id' => $refId]);
+                    $selected = $st->fetch();
+                } else {
+                    $st = $pdo->prepare("SELECT id, numero, estado, total, tercero_id FROM compras WHERE id = :id");
+                    $st->execute([':id' => $refId]);
+                    $selected = $st->fetch();
                 }
             }
 
-            $selectedInfo = [
-                'numero' => (string)($selected['numero'] ?? ''),
-                'estado' => (string)($selected['estado'] ?? ''),
-                'total' => $this->formatDecimal($total),
-                'pagado' => $this->formatDecimal($pagado),
-                'saldo' => $this->formatDecimal(max(0.0, $saldo)),
-                'tercero_id' => $terceroId,
-                'tercero_nombre' => $terceroNombre,
-            ];
-        }
+            $selectedInfo = null;
+            if (is_array($selected)) {
+                $total = (float)($selected['total'] ?? 0);
+                $pagado = Pago::sumByRef($tipoRef, (int)($selected['id'] ?? 0));
+                $saldo = round($total - $pagado, 2);
 
-        View::render('pagos/form', [
-            'title' => 'Registrar pago',
-            'csrf' => Csrf::token(),
-            'error' => Flash::get('error'),
-            'today' => date('Y-m-d'),
-            'tipo_ref' => $tipoRef,
-            'ref_id' => $refId,
-            'facturas' => $facturas,
-            'compras' => $compras,
-            'terceros' => $terceros,
-            'selectedInfo' => $selectedInfo,
-        ]);
+                $terceroId = (int)($selected['tercero_id'] ?? 0);
+                $terceroNombre = '';
+                foreach ($terceros as $t) {
+                    if ((int)($t['id'] ?? 0) === $terceroId) {
+                        $terceroNombre = (string)($t['nombre_comercial'] ?? '');
+                        break;
+                    }
+                }
+
+                $selectedInfo = [
+                    'numero' => (string)($selected['numero'] ?? ''),
+                    'estado' => (string)($selected['estado'] ?? ''),
+                    'total' => $this->formatDecimal($total),
+                    'pagado' => $this->formatDecimal($pagado),
+                    'saldo' => $this->formatDecimal(max(0.0, $saldo)),
+                    'tercero_id' => $terceroId,
+                    'tercero_nombre' => $terceroNombre,
+                ];
+            }
+
+            View::render('pagos/form', [
+                'title' => 'Registrar pago',
+                'csrf' => Csrf::token(),
+                'error' => Flash::get('error'),
+                'success' => Flash::get('success'), // ✅ faltaba
+                'today' => date('Y-m-d'),
+                'tipo_ref' => $tipoRef,
+                'ref_id' => $refId,
+                'facturas' => $facturas,
+                'compras' => $compras,
+                'terceros' => $terceros,
+                'selectedInfo' => $selectedInfo,
+            ]);
+        } catch (Throwable $e) {
+            error_log('[pagos.createForm] ' . $e->getMessage());
+            Flash::set('error', 'No se pudo cargar el formulario de pagos.');
+            $this->redirect303('/pagos');
+        }
     }
 
     public function create(): void

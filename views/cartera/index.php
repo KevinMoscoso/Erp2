@@ -10,6 +10,14 @@
 
   <p><a href="/">Inicio</a></p>
 
+  <?php if (!empty($flash_error)): ?>
+    <p style="color:#b00020;"><?= htmlspecialchars((string)$flash_error, ENT_QUOTES, 'UTF-8') ?></p>
+  <?php endif; ?>
+
+  <?php if (!empty($flash_success)): ?>
+    <p style="color:#0a7a0a;"><?= htmlspecialchars((string)$flash_success, ENT_QUOTES, 'UTF-8') ?></p>
+  <?php endif; ?>
+
   <?php if (!empty($errors) && is_array($errors)): ?>
     <div style="color:#b00020;">
       <ul>

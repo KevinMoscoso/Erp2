@@ -23,9 +23,7 @@ final class Pago
             SELECT
                 p.*,
                 t.nombre_comercial AS tercero_nombre,
-                COALESCE(f.numero, c.numero) AS ref_numero,
-                COALESCE(f.estado, c.estado) AS ref_estado,
-                COALESCE(f.total, c.total) AS ref_total
+                COALESCE(f.numero, c.numero) AS ref_numero
             FROM pagos p
             LEFT JOIN terceros t ON t.id = p.tercero_id
             LEFT JOIN facturas f ON (p.tipo_ref = 'factura' AND f.id = p.ref_id)
@@ -44,14 +42,32 @@ final class Pago
         }
 
         if ($q !== '') {
-            $sql .= " AND (
-                p.metodo LIKE :q
-                OR p.referencia LIKE :q
-                OR p.nota LIKE :q
-                OR t.nombre_comercial LIKE :q
-                OR COALESCE(f.numero, c.numero) LIKE :q
-            )";
-            $params[':q'] = '%' . $q . '%';
+            $like = '%' . $q . '%';
+
+            // Detecta el nombre real de la columna "Ref." en pagos (referencia o ref)
+            $refCol = self::resolvePagosRefColumn($pdo);
+
+            $sql .= " AND (";
+            $sql .= " p.metodo LIKE :q1";
+            $params[':q1'] = $like;
+
+            // Si existe columna de referencia, la incluimos sin romper compatibilidad
+            if ($refCol !== null) {
+                $sql .= " OR p.`{$refCol}` LIKE :q2";
+                $params[':q2'] = $like;
+            }
+
+            $sql .= " OR p.nota LIKE :q3";
+            $params[':q3'] = $like;
+
+            $sql .= " OR t.nombre_comercial LIKE :q4";
+            $params[':q4'] = $like;
+
+            // OJO: NO uses alias ref_numero en WHERE (MySQL no lo permite). Usa la expresión.
+            $sql .= " OR COALESCE(f.numero, c.numero) LIKE :q5";
+            $params[':q5'] = $like;
+
+            $sql .= " )";
         }
 
         $sql .= " ORDER BY p.fecha DESC, p.id DESC LIMIT 300";
@@ -59,9 +75,45 @@ final class Pago
         $st = $pdo->prepare($sql);
         $st->execute($params);
 
-        /** @var array<int, array<string, mixed>> $rows */
-        $rows = $st->fetchAll();
-        return $rows;
+        return $st->fetchAll();
+    }
+
+    /**
+    * Cachea el nombre real de la columna referencia en la tabla pagos.
+    * Acepta 'referencia' o 'ref'. Si no existe ninguna, retorna null.
+    */
+    private static ?string $pagosRefColumn = null;
+
+    private static function resolvePagosRefColumn(\PDO $pdo): ?string
+    {
+        if (self::$pagosRefColumn !== null) {
+            return self::$pagosRefColumn;
+        }
+
+        // orden de preferencia
+        foreach (['referencia', 'ref'] as $col) {
+            if (self::tableHasColumn($pdo, 'pagos', $col)) {
+                self::$pagosRefColumn = $col;
+                return self::$pagosRefColumn;
+            }
+        }
+
+        self::$pagosRefColumn = null;
+        return null;
+    }
+
+    private static function tableHasColumn(\PDO $pdo, string $table, string $column): bool
+    {
+        $st = $pdo->prepare("
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = DATABASE()
+              AND table_name = :t
+              AND column_name = :c
+            LIMIT 1
+        ");
+        $st->execute([':t' => $table, ':c' => $column]);
+        return (bool)$st->fetchColumn();
     }
 
     /**

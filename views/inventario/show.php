@@ -5,12 +5,19 @@ use Erp2\Core\Auth;
 
 $pid = (int)($producto['id'] ?? 0);
 $tipo = (string)($producto['tipo'] ?? '');
+$accionVal = (string)old('accion', 'sumar');
+$cantidadVal = (string)old('cantidad', '');
+$notaVal = (string)old('nota', '');
 ?>
 <!doctype html>
 <html lang="es">
 <head>
     <meta charset="utf-8">
     <title>Kardex</title>
+    <style>
+        .err{color:#b00020;font-size:.92em;margin-top:4px}
+        .invalid{outline:2px solid #b00020}
+    </style>
 </head>
 <body>
     <p><a href="/inventario">← Volver</a></p>
@@ -36,28 +43,59 @@ $tipo = (string)($producto['tipo'] ?? '');
 
     <?php if (Auth::has('inventario.ajustar') && $tipo === 'producto'): ?>
         <h2>Ajuste manual</h2>
+
+        <?php if (err('form')): ?>
+            <p class="err"><?= htmlspecialchars((string)err('form'), ENT_QUOTES, 'UTF-8') ?></p>
+        <?php endif; ?>
+
         <form method="post" action="/inventario/<?= $pid ?>/ajustar">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)$csrf, ENT_QUOTES, 'UTF-8') ?>">
 
             <label>
                 Acción:
-                <select name="accion">
-                    <option value="sumar">Sumar</option>
-                    <option value="restar">Restar</option>
+                <select name="accion" class="<?= hasErr('accion') ? 'invalid' : '' ?>">
+                    <option value="sumar" <?= $accionVal === 'sumar' ? 'selected' : '' ?>>Sumar</option>
+                    <option value="restar" <?= $accionVal === 'restar' ? 'selected' : '' ?>>Restar</option>
                 </select>
             </label>
+            <?php if (err('accion')): ?>
+                <div class="err"><?= htmlspecialchars((string)err('accion'), ENT_QUOTES, 'UTF-8') ?></div>
+            <?php endif; ?>
+
             <br><br>
 
             <label>
                 Cantidad:
-                <input type="number" step="0.01" min="0.01" name="cantidad" required>
+                <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    name="cantidad"
+                    required
+                    value="<?= htmlspecialchars($cantidadVal, ENT_QUOTES, 'UTF-8') ?>"
+                    class="<?= hasErr('cantidad') ? 'invalid' : '' ?>"
+                >
             </label>
+            <?php if (err('cantidad')): ?>
+                <div class="err"><?= htmlspecialchars((string)err('cantidad'), ENT_QUOTES, 'UTF-8') ?></div>
+            <?php endif; ?>
+
             <br><br>
 
             <label>
                 Nota (opcional):
-                <input type="text" name="nota" maxlength="255">
+                <input
+                    type="text"
+                    name="nota"
+                    maxlength="255"
+                    value="<?= htmlspecialchars($notaVal, ENT_QUOTES, 'UTF-8') ?>"
+                    class="<?= hasErr('nota') ? 'invalid' : '' ?>"
+                >
             </label>
+            <?php if (err('nota')): ?>
+                <div class="err"><?= htmlspecialchars((string)err('nota'), ENT_QUOTES, 'UTF-8') ?></div>
+            <?php endif; ?>
+
             <br><br>
 
             <button type="submit">Aplicar ajuste</button>

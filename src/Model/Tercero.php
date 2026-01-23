@@ -23,20 +23,21 @@ final class Tercero
             return $stmt->fetchAll();
         }
 
+        // Evitar HY093: PDO (MySQL) no tolera placeholders nombrados repetidos en un mismo statement.
         $like = '%' . $q . '%';
         $stmt = $pdo->prepare('
             SELECT *
             FROM terceros
             WHERE estado = 1
               AND (
-                nombre_comercial LIKE :q
-                OR identificacion LIKE :q
-                OR email LIKE :q
+                nombre_comercial LIKE :q1
+                OR identificacion LIKE :q2
+                OR email LIKE :q3
               )
             ORDER BY id DESC
             LIMIT 200
         ');
-        $stmt->execute([':q' => $like]);
+        $stmt->execute([':q1' => $like, ':q2' => $like, ':q3' => $like]);
 
         return $stmt->fetchAll();
     }

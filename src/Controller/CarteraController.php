@@ -5,6 +5,7 @@ namespace Erp2\Controller;
 
 use Erp2\Core\Auth;
 use Erp2\Core\Database;
+use Erp2\Core\Flash;
 use Erp2\Core\View;
 use Erp2\Model\Cartera;
 use Throwable;
@@ -45,6 +46,14 @@ final class CarteraController
         if ($hasta !== '' && !$this->isValidDate($hasta)) {
             $errors[] = 'Fecha "hasta" inválida. Use YYYY-MM-DD.';
             $hasta = '';
+        }
+
+        if ($desde !== '' && $hasta !== '' && $desde > $hasta) {
+            $errors[] = 'Rango de fechas inválido: "desde" no puede ser mayor que "hasta".';
+            // Auto-corregimos invirtiendo el rango para evitar pantallas vacías.
+            $tmp = $desde;
+            $desde = $hasta;
+            $hasta = $tmp;
         }
 
         $estadoPago = trim((string)($_GET['estado_pago'] ?? ''));
@@ -99,6 +108,8 @@ final class CarteraController
             'desde' => $desde,
             'hasta' => $hasta,
             'estado_pago' => $estadoPago,
+            'flash_error' => Flash::get('error'),
+            'flash_success' => Flash::get('success'),
             'errors' => $errors,
             'cxc' => $cxc,
             'cxp' => $cxp,
