@@ -77,7 +77,19 @@ final class ComprasController
 
         $errors = [];
 
+        // Captura old temprano para no perder inputs incluso en CSRF inválido
+        $old = [
+            'fecha' => trim((string)($_POST['fecha'] ?? date('Y-m-d'))),
+            'tercero_id' => (string)($_POST['tercero_id'] ?? ''),
+            'line_producto_id' => $_POST['line_producto_id'] ?? [],
+            'line_descripcion' => $_POST['line_descripcion'] ?? [],
+            'line_cantidad' => $_POST['line_cantidad'] ?? [],
+            'line_costo_unitario' => $_POST['line_costo_unitario'] ?? [],
+        ];
+
         if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            Flash::setData('old', $old);
+            Flash::setData('errors', ['_csrf' => 'Token CSRF inválido.']);
             Flash::set('error', 'Solicitud inválida. Intenta nuevamente.');
             $this->redirect303('/compras/crear');
         }
@@ -104,14 +116,9 @@ final class ComprasController
             $errors['lines'] = 'Debe ingresar al menos 1 línea válida.';
         }
 
-        $old = [
-            'fecha' => $fecha,
-            'tercero_id' => (string)$terceroId,
-            'line_producto_id' => $_POST['line_producto_id'] ?? [],
-            'line_descripcion' => $_POST['line_descripcion'] ?? [],
-            'line_cantidad' => $_POST['line_cantidad'] ?? [],
-            'line_costo_unitario' => $_POST['line_costo_unitario'] ?? [],
-        ];
+        // Normaliza old final (ya validado)
+        $old['fecha'] = $fecha;
+        $old['tercero_id'] = (string)$terceroId;
 
         if (!empty($errors)) {
             Flash::setData('old', $old);
