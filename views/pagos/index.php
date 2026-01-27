@@ -17,6 +17,17 @@
     <p style="color:#0a7a0a;"><?= htmlspecialchars((string)$success, ENT_QUOTES, 'UTF-8') ?></p>
   <?php endif; ?>
 
+  <?php
+    // UX: si ref_id viene vacío, no mostrar "0"
+    $refIdVal = '';
+    if (isset($ref_id)) {
+        $tmp = trim((string)$ref_id);
+        if ($tmp !== '' && (int)$tmp > 0) {
+            $refIdVal = (string)((int)$tmp);
+        }
+    }
+  ?>
+
   <form method="get" action="/pagos">
     <label>Buscar</label>
     <input name="q" value="<?= htmlspecialchars((string)($q ?? ''), ENT_QUOTES, 'UTF-8') ?>" maxlength="120">
@@ -29,7 +40,7 @@
     </select>
 
     <label>Ref ID</label>
-    <input name="ref_id" value="<?= htmlspecialchars((string)($ref_id ?? ''), ENT_QUOTES, 'UTF-8') ?>" style="width:90px;">
+    <input name="ref_id" value="<?= htmlspecialchars($refIdVal, ENT_QUOTES, 'UTF-8') ?>" style="width:90px;">
 
     <button type="submit">Filtrar</button>
     <a href="/pagos">Limpiar</a>

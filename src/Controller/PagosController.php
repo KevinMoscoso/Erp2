@@ -27,20 +27,38 @@ final class PagosController
         Auth::can('pagos.ver');
 
         $q = trim((string)($_GET['q'] ?? ''));
-        $tipoRef = trim((string)($_GET['tipo_ref'] ?? ''));
-        $refId = (int)($_GET['ref_id'] ?? 0);
+        if (mb_strlen($q) > 120) {
+            $q = mb_substr($q, 0, 120);
+        }
 
+        $tipoRef = trim((string)($_GET['tipo_ref'] ?? ''));
         if (!in_array($tipoRef, ['factura', 'compra'], true)) {
             $tipoRef = '';
         }
 
-        $items = Pago::search($q, $tipoRef !== '' ? $tipoRef : null, $refId > 0 ? $refId : null);
+        // UX: no mostrar "0" por defecto. Solo considerar ref_id si > 0.
+        $refIdRaw = trim((string)($_GET['ref_id'] ?? ''));
+        $refId = null;
+        $refIdView = '';
+        if ($refIdRaw !== '') {
+            $tmp = (int)$refIdRaw;
+            if ($tmp > 0) {
+                $refId = $tmp;
+                $refIdView = (string)$tmp;
+            }
+        }
+
+        $items = Pago::search(
+            $q,
+            $tipoRef !== '' ? $tipoRef : null,
+            $refId
+        );
 
         View::render('pagos/index', [
             'title' => 'Pagos',
             'q' => $q,
             'tipo_ref' => $tipoRef,
-            'ref_id' => $refId,
+            'ref_id' => $refIdView, // <-- string '' si no hay filtro real
             'items' => $items,
             'csrf' => Csrf::token(),
             'error' => Flash::get('error'),
