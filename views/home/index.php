@@ -54,6 +54,10 @@
     <?php if (\Erp2\Core\Auth::has('cartera.ver')): ?>
       <li><a href="/cartera">Cartera (CXC/CXP)</a></li>
     <?php endif; ?>
+
+    <?php if (\Erp2\Core\Auth::has('auditoria.ver')): ?>
+      <li><a href="/auditoria">Auditoría</a></li>
+    <?php endif; ?>
   </ul>
 
   <p>Prototipo ERP2: módulos incrementales con RBAC, auditoría y validaciones mínimas.</p>

@@ -35,6 +35,9 @@ final class App
         // Cartera (nuevo)
         $router->get('/cartera', [\Erp2\Controller\CarteraController::class, 'index']);
 
+        // Auditoría (solo lectura)
+        $router->get('/auditoria', [\Erp2\Controller\AuditoriaController::class, 'index']);
+
         // Terceros / Contactos
         $router->get('/terceros', [\Erp2\Controller\TercerosController::class, 'index']);
         $router->get('/terceros/crear', [\Erp2\Controller\TercerosController::class, 'createForm']);
