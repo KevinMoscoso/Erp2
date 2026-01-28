@@ -55,8 +55,21 @@
       <li><a href="/cartera">Cartera (CXC/CXP)</a></li>
     <?php endif; ?>
 
-    <?php if (\Erp2\Core\Auth::has('auditoria.ver')): ?>
-      <li><a href="/auditoria">Auditoría</a></li>
+    <?php if (\Erp2\Core\Auth::has('usuarios.ver') || \Erp2\Core\Auth::has('roles.ver') || \Erp2\Core\Auth::has('permisos.ver')): ?>
+      <li>
+        <strong>Seguridad (RBAC)</strong>
+        <ul>
+          <?php if (\Erp2\Core\Auth::has('usuarios.ver')): ?>
+            <li><a href="/usuarios">Usuarios</a></li>
+          <?php endif; ?>
+          <?php if (\Erp2\Core\Auth::has('roles.ver')): ?>
+            <li><a href="/roles">Roles</a></li>
+          <?php endif; ?>
+          <?php if (\Erp2\Core\Auth::has('permisos.ver')): ?>
+            <li><a href="/permisos">Permisos</a></li>
+          <?php endif; ?>
+        </ul>
+      </li>
     <?php endif; ?>
   </ul>
 

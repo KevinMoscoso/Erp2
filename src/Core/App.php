@@ -35,9 +35,6 @@ final class App
         // Cartera (nuevo)
         $router->get('/cartera', [\Erp2\Controller\CarteraController::class, 'index']);
 
-        // Auditoría (solo lectura)
-        $router->get('/auditoria', [\Erp2\Controller\AuditoriaController::class, 'index']);
-
         // Terceros / Contactos
         $router->get('/terceros', [\Erp2\Controller\TercerosController::class, 'index']);
         $router->get('/terceros/crear', [\Erp2\Controller\TercerosController::class, 'createForm']);
@@ -84,6 +81,13 @@ final class App
         $router->get('/pagos/crear', [\Erp2\Controller\PagosController::class, 'createForm']);
         $router->post('/pagos/crear', [\Erp2\Controller\PagosController::class, 'create']);
         $router->post('/pagos/{id}/eliminar', [\Erp2\Controller\PagosController::class, 'delete']);
+
+        // Seguridad (solo lectura): Usuarios / Roles / Permisos
+        $router->get('/permisos', [\Erp2\Controller\PermisosController::class, 'index']);
+        $router->get('/roles', [\Erp2\Controller\RolesController::class, 'index']);
+        $router->get('/roles/{id}', [\Erp2\Controller\RolesController::class, 'show']);
+        $router->get('/usuarios', [\Erp2\Controller\UsuariosController::class, 'index']);
+        $router->get('/usuarios/{id}', [\Erp2\Controller\UsuariosController::class, 'show']);
 
         return new self($router);
     }
