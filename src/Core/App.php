@@ -82,11 +82,31 @@ final class App
         $router->post('/pagos/crear', [\Erp2\Controller\PagosController::class, 'create']);
         $router->post('/pagos/{id}/eliminar', [\Erp2\Controller\PagosController::class, 'delete']);
 
-        // Seguridad (solo lectura): Usuarios / Roles / Permisos
+        // Seguridad: Usuarios / Roles / Permisos (lectura + CRUD mínimo solo admin id=1)
         $router->get('/permisos', [\Erp2\Controller\PermisosController::class, 'index']);
+
+        // Roles (lectura)
         $router->get('/roles', [\Erp2\Controller\RolesController::class, 'index']);
+
+        // ✅ NUEVO: Roles CRUD (solo admin id=1) — IMPORTANTE: antes de /roles/{id}
+        $router->get('/roles/crear', [\Erp2\Controller\RolesController::class, 'createForm']);
+        $router->post('/roles/crear', [\Erp2\Controller\RolesController::class, 'create']);
+        $router->get('/roles/{id}/editar', [\Erp2\Controller\RolesController::class, 'editForm']);
+        $router->post('/roles/{id}/editar', [\Erp2\Controller\RolesController::class, 'update']);
+
+        // Roles (detalle lectura)
         $router->get('/roles/{id}', [\Erp2\Controller\RolesController::class, 'show']);
+
+        // Usuarios (lectura)
         $router->get('/usuarios', [\Erp2\Controller\UsuariosController::class, 'index']);
+
+        // ✅ NUEVO: Usuarios CRUD (solo admin id=1) — IMPORTANTE: antes de /usuarios/{id}
+        $router->get('/usuarios/crear', [\Erp2\Controller\UsuariosController::class, 'createForm']);
+        $router->post('/usuarios/crear', [\Erp2\Controller\UsuariosController::class, 'create']);
+        $router->get('/usuarios/{id}/editar', [\Erp2\Controller\UsuariosController::class, 'editForm']);
+        $router->post('/usuarios/{id}/editar', [\Erp2\Controller\UsuariosController::class, 'update']);
+
+        // Usuarios (detalle lectura)
         $router->get('/usuarios/{id}', [\Erp2\Controller\UsuariosController::class, 'show']);
 
         return new self($router);

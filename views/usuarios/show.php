@@ -1,3 +1,10 @@
+<?php
+use Erp2\Core\Auth;
+
+$isAdmin = (bool)($is_admin ?? ((int)(Auth::user()['id'] ?? 0) === 1));
+$u = is_array($user ?? null) ? $user : [];
+$id = (int)($u['id'] ?? 0);
+?>
 <!doctype html>
 <html lang="es">
 <head>
@@ -8,10 +15,7 @@
 <body>
   <h1><?= htmlspecialchars($title ?? 'Detalle usuario', ENT_QUOTES, 'UTF-8') ?></h1>
 
-  <p>
-    <a href="/">Inicio</a> |
-    <a href="/usuarios">Usuarios</a>
-  </p>
+  <p><a href="/usuarios">← Volver</a></p>
 
   <?php if (!empty($error)): ?>
     <p style="color:#b00020;"><?= htmlspecialchars((string)$error, ENT_QUOTES, 'UTF-8') ?></p>
@@ -20,49 +24,29 @@
     <p style="color:#0a7a0a;"><?= htmlspecialchars((string)$success, ENT_QUOTES, 'UTF-8') ?></p>
   <?php endif; ?>
 
-  <?php
-    $u = is_array($user ?? null) ? $user : [];
-    $id = (int)($u['id'] ?? 0);
-    $email = (string)($u['email'] ?? '');
-    $nombre = (string)($u['nombre'] ?? ($u['nombres'] ?? ''));
-  ?>
+  <?php if ($isAdmin && $id > 0): ?>
+    <p><a href="/usuarios/<?= $id ?>/editar">✏️ Editar usuario</a></p>
+  <?php endif; ?>
 
-  <h2>Usuario</h2>
+  <h3>Datos</h3>
   <ul>
-    <li><strong>ID:</strong> <?= htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8') ?></li>
-    <li><strong>Email:</strong> <?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?></li>
-    <li><strong>Nombre:</strong> <?= htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8') ?></li>
+    <li><b>ID:</b> <?= htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8') ?></li>
+    <li><b>Email:</b> <?= htmlspecialchars((string)($u['email'] ?? ''), ENT_QUOTES, 'UTF-8') ?></li>
+    <li><b>Nombre:</b> <?= htmlspecialchars((string)($u['nombre'] ?? ($u['nombres'] ?? '')), ENT_QUOTES, 'UTF-8') ?></li>
   </ul>
 
-  <h2>Roles asignados</h2>
-  <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Código</th>
-        <th>Nombre</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach (($roles ?? []) as $r): ?>
-        <?php
-          $rid = (int)($r['id'] ?? 0);
-          $codigo = (string)($r['codigo'] ?? ($r['nombre'] ?? ''));
-          $rnombre = (string)($r['nombre'] ?? '');
-        ?>
-        <tr>
-          <td><?= htmlspecialchars((string)$rid, ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars($codigo, ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars($rnombre, ENT_QUOTES, 'UTF-8') ?></td>
-          <td><a href="/roles/<?= $rid ?>">Ver rol</a></td>
-        </tr>
-      <?php endforeach; ?>
-
-      <?php if (empty($roles)): ?>
-        <tr><td colspan="4">Sin roles asignados.</td></tr>
-      <?php endif; ?>
-    </tbody>
-  </table>
+  <h3>Roles asignados</h3>
+  <ul>
+    <?php foreach (($roles ?? []) as $r): ?>
+      <li>
+        <?= htmlspecialchars((string)($r['codigo'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
+        <?= ($r['nombre'] ?? '') !== '' ? (' — ' . htmlspecialchars((string)$r['nombre'], ENT_QUOTES, 'UTF-8')) : '' ?>
+        (ID <?= htmlspecialchars((string)($r['id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>)
+      </li>
+    <?php endforeach; ?>
+    <?php if (empty($roles)): ?>
+      <li>Sin roles.</li>
+    <?php endif; ?>
+  </ul>
 </body>
 </html>
