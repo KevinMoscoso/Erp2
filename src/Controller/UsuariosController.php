@@ -96,8 +96,8 @@ final class UsuariosController
 
     public function index(): void
     {
-        Auth::requireLogin();
-        Auth::can('usuarios.ver');
+        // ✅ ADMIN-ONLY (id=1) para TODO el módulo Seguridad
+        if (!$this->adminOnlyOr403()) return;
 
         $q = trim((string)($_GET['q'] ?? ''));
         if (mb_strlen($q) > 120) {
@@ -194,8 +194,8 @@ final class UsuariosController
 
     public function show(int $id): void
     {
-        Auth::requireLogin();
-        Auth::can('usuarios.ver');
+        // ✅ ADMIN-ONLY (id=1) para TODO el módulo Seguridad
+        if (!$this->adminOnlyOr403()) return;
 
         $user = null;
         $roles = [];
@@ -339,7 +339,6 @@ final class UsuariosController
             $pdo->beginTransaction();
 
             // Insert dinámico según columnas existentes
-            $fields = ['email' => true, 'password_hash' => true] + ($cols ?: []);
             $sqlCols = ['email', 'password_hash'];
             $sqlVals = [':email', ':hash'];
             $params = [':email' => $email, ':hash' => $hash];
@@ -366,14 +365,18 @@ final class UsuariosController
 
             $pdo->commit();
 
-            // Auditoría (si existe)
+            // Auditoría (firma correcta) - NO rompe si falla
             try {
-                Auditoria::log('seguridad.usuario.crear', [
-                    'admin_id' => (int)(Auth::user()['id'] ?? 0),
-                    'usuario_id' => $newId,
-                    'email' => $email,
-                    'roles' => $roleIds,
-                ]);
+                Auditoria::log(
+                    $this->userId(),
+                    'crear',
+                    'usuarios',
+                    (int)$newId,
+                    [
+                        'email' => $email,
+                        'roles' => $roleIds,
+                    ]
+                );
             } catch (Throwable) {
                 // no-op
             }
@@ -537,14 +540,19 @@ final class UsuariosController
 
             $pdo->commit();
 
+            // Auditoría (firma correcta) - NO rompe si falla
             try {
-                Auditoria::log('seguridad.usuario.editar', [
-                    'admin_id' => (int)(Auth::user()['id'] ?? 0),
-                    'usuario_id' => $id,
-                    'email' => $email,
-                    'roles' => $roleIds,
-                    'password_changed' => ($password !== ''),
-                ]);
+                Auditoria::log(
+                    $this->userId(),
+                    'editar',
+                    'usuarios',
+                    (int)$id,
+                    [
+                        'email' => $email,
+                        'roles' => $roleIds,
+                        'password_changed' => ($password !== ''),
+                    ]
+                );
             } catch (Throwable) {
                 // no-op
             }

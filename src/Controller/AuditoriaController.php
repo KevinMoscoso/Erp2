@@ -183,4 +183,48 @@ final class AuditoriaController
         $p = explode('-', $date);
         return checkdate((int)$p[1], (int)$p[2], (int)$p[0]);
     }
+
+    public function show(int $id): void
+    {
+        Auth::requireLogin();
+        Auth::can('auditoria.ver');
+
+        if ($id <= 0) {
+            http_response_code(404);
+            echo '404 Not Found';
+            return;
+        }
+
+        try {
+            $pdo = Database::pdo();
+
+            $st = $pdo->prepare("
+                SELECT a.*, u.email AS usuario_email
+                FROM auditoria a
+                LEFT JOIN usuarios u ON u.id = a.usuario_id
+                WHERE a.id = :id
+                LIMIT 1
+            ");
+            $st->execute([':id' => $id]);
+            $row = $st->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                http_response_code(404);
+                echo '404 Not Found';
+                return;
+            }
+
+            View::render('auditoria/show', [
+                'title' => 'Auditoría #' . (string)$id,
+                'flash_error' => Flash::get('error'),
+                'flash_success' => Flash::get('success'),
+                'row' => $row,
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[auditoria.show] id=' . $id . ' err=' . $e->getMessage());
+            Flash::set('error', 'No se pudo cargar el detalle de auditoría.');
+            header('Location: /auditoria', true, 303);
+            return;
+        }
+    }
 }

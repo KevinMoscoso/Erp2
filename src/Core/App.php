@@ -83,7 +83,19 @@ final class App
         $router->post('/pagos/{id}/eliminar', [\Erp2\Controller\PagosController::class, 'delete']);
 
         // Seguridad: Usuarios / Roles / Permisos (lectura + CRUD mínimo solo admin id=1)
+        // Auditoria (lectura)
+        $router->get('/auditoria', [\Erp2\Controller\AuditoriaController::class, 'index']);
+        $router->get('/auditoria/{id}', [\Erp2\Controller\AuditoriaController::class, 'show']);
+
+        // Permisos (lectura)
         $router->get('/permisos', [\Erp2\Controller\PermisosController::class, 'index']);
+
+        // ✅ NUEVO: Permisos CRUD (solo admin id=1) — IMPORTANTE: antes de cualquier /permisos/{id} si existiera
+        $router->get('/permisos/crear', [\Erp2\Controller\PermisosController::class, 'createForm']);
+        $router->post('/permisos/crear', [\Erp2\Controller\PermisosController::class, 'create']);
+        $router->get('/permisos/{id}/editar', [\Erp2\Controller\PermisosController::class, 'editForm']);
+        $router->post('/permisos/{id}/editar', [\Erp2\Controller\PermisosController::class, 'update']);
+        $router->post('/permisos/{id}/eliminar', [\Erp2\Controller\PermisosController::class, 'delete']);
 
         // Roles (lectura)
         $router->get('/roles', [\Erp2\Controller\RolesController::class, 'index']);

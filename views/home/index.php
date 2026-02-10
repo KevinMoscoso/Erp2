@@ -12,6 +12,9 @@
     if (is_array($user)) {
       $userLabel = (string)($user['email'] ?? ($user['nombre'] ?? 'Usuario'));
     }
+
+    // ✅ Seguridad (RBAC) visible SOLO para admin id=1
+    $isAdmin = (int)($user['id'] ?? 0) === 1;
   ?>
 
   <h1><?= htmlspecialchars($title ?? 'ERP2', ENT_QUOTES, 'UTF-8') ?></h1>
@@ -55,19 +58,17 @@
       <li><a href="/cartera">Cartera (CXC/CXP)</a></li>
     <?php endif; ?>
 
-    <?php if (\Erp2\Core\Auth::has('usuarios.ver') || \Erp2\Core\Auth::has('roles.ver') || \Erp2\Core\Auth::has('permisos.ver')): ?>
+    <?php if (\Erp2\Core\Auth::has('auditoria.ver')): ?>
+      <li><a href="/auditoria">Auditoría</a></li>
+    <?php endif; ?>
+
+    <?php if ($isAdmin): ?>
       <li>
         <strong>Seguridad (RBAC)</strong>
         <ul>
-          <?php if (\Erp2\Core\Auth::has('usuarios.ver')): ?>
-            <li><a href="/usuarios">Usuarios</a></li>
-          <?php endif; ?>
-          <?php if (\Erp2\Core\Auth::has('roles.ver')): ?>
-            <li><a href="/roles">Roles</a></li>
-          <?php endif; ?>
-          <?php if (\Erp2\Core\Auth::has('permisos.ver')): ?>
-            <li><a href="/permisos">Permisos</a></li>
-          <?php endif; ?>
+          <li><a href="/usuarios">Usuarios</a></li>
+          <li><a href="/roles">Roles</a></li>
+          <li><a href="/permisos">Permisos</a></li>
         </ul>
       </li>
     <?php endif; ?>

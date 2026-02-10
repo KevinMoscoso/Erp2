@@ -117,8 +117,8 @@ final class RolesController
 
     public function index(): void
     {
-        Auth::requireLogin();
-        Auth::can('roles.ver');
+        // ✅ ADMIN-ONLY (id=1) también para lectura
+        if (!$this->adminOnlyOr403()) return;
 
         $q = trim((string)($_GET['q'] ?? ''));
         if (mb_strlen($q) > 120) {
@@ -182,14 +182,14 @@ final class RolesController
             'items' => $items,
             'error' => Flash::get('error'),
             'success' => Flash::get('success'),
-            'is_admin' => $this->isAdminId1(),
+            'is_admin' => true, // aquí siempre será admin por el guard
         ]);
     }
 
     public function show(int $id): void
     {
-        Auth::requireLogin();
-        Auth::can('roles.ver');
+        // ✅ ADMIN-ONLY (id=1) también para lectura
+        if (!$this->adminOnlyOr403()) return;
 
         $role = null;
         $perms = [];
@@ -230,7 +230,7 @@ final class RolesController
             'permisos' => $perms,
             'error' => Flash::get('error'),
             'success' => Flash::get('success'),
-            'is_admin' => $this->isAdminId1(),
+            'is_admin' => true,
         ]);
     }
 

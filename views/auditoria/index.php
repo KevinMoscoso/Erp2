@@ -101,7 +101,11 @@
           }
         ?>
         <tr>
-          <td><?= htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8') ?></td>
+          <td>
+            <a href="/auditoria/<?= $id ?>">
+              <?= htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8') ?>
+            </a>
+          </td>
           <td><?= htmlspecialchars($fecha, ENT_QUOTES, 'UTF-8') ?></td>
           <td>
             <?= htmlspecialchars((string)$uid, ENT_QUOTES, 'UTF-8') ?>
