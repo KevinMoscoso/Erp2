@@ -68,15 +68,51 @@ use Erp2\Core\Auth;
       foreach ($sel as $rid) $selMap[(int)$rid] = true;
     ?>
     <?php foreach (($roles ?? []) as $r): ?>
-      <?php $rid = (int)($r['id'] ?? 0); ?>
+      <?php
+        $rid = (int)($r['id'] ?? 0);
+        $label = (string)($r['codigo'] ?? '');
+        if ($label === '') $label = (string)($r['nombre'] ?? '');
+      ?>
       <label style="display:block;">
         <input type="checkbox" name="roles[]" value="<?= $rid ?>" <?= isset($selMap[$rid]) ? 'checked' : '' ?>>
-        <?= htmlspecialchars((string)($r['codigo'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
-        <?= ($r['nombre'] ?? '') !== '' ? (' — ' . htmlspecialchars((string)$r['nombre'], ENT_QUOTES, 'UTF-8')) : '' ?>
+        <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+        <?php
+          // si existe nombre y además existe código, mostramos nombre como complemento
+          $extra = (string)($r['nombre'] ?? '');
+          if ((string)($r['codigo'] ?? '') !== '' && $extra !== '') {
+              echo ' — ' . htmlspecialchars($extra, ENT_QUOTES, 'UTF-8');
+          }
+        ?>
       </label>
     <?php endforeach; ?>
 
     <?php if (hasErr('roles')): ?><div class="err"><?= htmlspecialchars((string)err('roles'), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
+
+    <h3>Permisos directos (opcionales)</h3>
+    <p style="margin:0 0 6px 0; font-size:.95em;">
+      Se aplican mediante un rol personal <code>USR_&lt;id&gt;</code> para este usuario.
+    </p>
+
+    <?php
+      $selP = old('perm_ids', []);
+      if (!is_array($selP)) $selP = [];
+      $selPMap = [];
+      foreach ($selP as $pid) $selPMap[(int)$pid] = true;
+    ?>
+
+    <?php foreach (($permisos ?? []) as $p): ?>
+      <?php $pid = (int)($p['id'] ?? 0); ?>
+      <label style="display:block;">
+        <input type="checkbox" name="perm_ids[]" value="<?= $pid ?>" <?= isset($selPMap[$pid]) ? 'checked' : '' ?>>
+        <?= htmlspecialchars((string)($p['codigo'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
+      </label>
+    <?php endforeach; ?>
+
+    <?php if (empty($permisos ?? [])): ?>
+      <div style="color:#666; font-size:.95em;">No hay permisos disponibles.</div>
+    <?php endif; ?>
+
+    <?php if (hasErr('perm_ids')): ?><div class="err"><?= htmlspecialchars((string)err('perm_ids'), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
 
     <p><button type="submit">Guardar</button></p>
   </form>

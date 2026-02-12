@@ -296,7 +296,7 @@ final class RolesController
         try {
             $pdo = Database::pdo();
 
-            // Unicidad por nombre (recomendado, para evitar duplicados)
+            // Unicidad por nombre
             $stE = $pdo->prepare('SELECT id FROM roles WHERE nombre = :nombre LIMIT 1');
             $stE->execute([':nombre' => $nombre]);
             if ($stE->fetchColumn()) {
@@ -311,7 +311,6 @@ final class RolesController
 
             $pdo->beginTransaction();
 
-            // Insert compatible con tu schema: nombre, descripcion, (created_at si existe)
             $sqlCols = ['nombre', 'descripcion'];
             $sqlVals = [':nombre', ':descripcion'];
             $params = [':nombre' => $nombre, ':descripcion' => $descripcion];
@@ -327,7 +326,7 @@ final class RolesController
 
             $rolId = (int)$pdo->lastInsertId();
 
-            // Sync permisos (delete+insert)
+            // Sync permisos
             $del = $pdo->prepare('DELETE FROM rol_permisos WHERE rol_id = :rid');
             $del->execute([':rid' => $rolId]);
 
@@ -340,13 +339,20 @@ final class RolesController
 
             $pdo->commit();
 
+            // ✅ FIX: Auditoria::log con firma correcta
             try {
-                Auditoria::log('seguridad.rol.crear', [
-                    'admin_id' => (int)(Auth::user()['id'] ?? 0),
-                    'rol_id' => $rolId,
-                    'nombre' => $nombre,
-                    'permisos' => $permIds,
-                ]);
+                $adminId = (int)(Auth::user()['id'] ?? 0);
+                Auditoria::log(
+                    $adminId,
+                    'crear',
+                    'roles',
+                    $rolId,
+                    [
+                        'nombre' => $nombre,
+                        'descripcion' => $descripcion,
+                        'permisos' => $permIds,
+                    ]
+                );
             } catch (Throwable) {}
 
             Flash::set('success', 'Rol creado correctamente.');
@@ -473,13 +479,20 @@ final class RolesController
 
             $pdo->commit();
 
+            // ✅ FIX: Auditoria::log con firma correcta
             try {
-                Auditoria::log('seguridad.rol.editar', [
-                    'admin_id' => (int)(Auth::user()['id'] ?? 0),
-                    'rol_id' => $id,
-                    'nombre' => $nombre,
-                    'permisos' => $permIds,
-                ]);
+                $adminId = (int)(Auth::user()['id'] ?? 0);
+                Auditoria::log(
+                    $adminId,
+                    'editar',
+                    'roles',
+                    (int)$id,
+                    [
+                        'nombre' => $nombre,
+                        'descripcion' => $descripcion,
+                        'permisos' => $permIds,
+                    ]
+                );
             } catch (Throwable) {}
 
             Flash::set('success', 'Rol actualizado.');
@@ -495,5 +508,11 @@ final class RolesController
             Flash::set('error', 'No se pudo actualizar el rol.');
             $this->redirect303('/roles/' . $id . '/editar');
         }
+    }
+
+    private function userId(): int
+    {
+        $u = Auth::user();
+        return is_array($u) ? (int)($u['id'] ?? 0) : 0;
     }
 }

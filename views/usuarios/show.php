@@ -38,14 +38,43 @@ $id = (int)($u['id'] ?? 0);
   <h3>Roles asignados</h3>
   <ul>
     <?php foreach (($roles ?? []) as $r): ?>
+      <?php
+        $label = (string)($r['codigo'] ?? '');
+        if ($label === '') $label = (string)($r['nombre'] ?? '');
+      ?>
       <li>
-        <?= htmlspecialchars((string)($r['codigo'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
-        <?= ($r['nombre'] ?? '') !== '' ? (' — ' . htmlspecialchars((string)$r['nombre'], ENT_QUOTES, 'UTF-8')) : '' ?>
+        <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+        <?php
+          $extra = (string)($r['nombre'] ?? '');
+          if ((string)($r['codigo'] ?? '') !== '' && $extra !== '') {
+              echo ' — ' . htmlspecialchars($extra, ENT_QUOTES, 'UTF-8');
+          }
+        ?>
         (ID <?= htmlspecialchars((string)($r['id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>)
       </li>
     <?php endforeach; ?>
     <?php if (empty($roles)): ?>
       <li>Sin roles.</li>
+    <?php endif; ?>
+  </ul>
+
+  <h3>Permisos directos (rol personal <?= htmlspecialchars('USR_'.$id, ENT_QUOTES, 'UTF-8') ?>)</h3>
+  <ul>
+    <?php foreach (($perms_directos ?? []) as $c): ?>
+      <li><?= htmlspecialchars((string)$c, ENT_QUOTES, 'UTF-8') ?></li>
+    <?php endforeach; ?>
+    <?php if (empty($perms_directos ?? [])): ?>
+      <li>Sin permisos directos.</li>
+    <?php endif; ?>
+  </ul>
+
+  <h3>Permisos efectivos (todos los roles)</h3>
+  <ul>
+    <?php foreach (($perms_efectivos ?? []) as $c): ?>
+      <li><?= htmlspecialchars((string)$c, ENT_QUOTES, 'UTF-8') ?></li>
+    <?php endforeach; ?>
+    <?php if (empty($perms_efectivos ?? [])): ?>
+      <li>Sin permisos efectivos.</li>
     <?php endif; ?>
   </ul>
 </body>
