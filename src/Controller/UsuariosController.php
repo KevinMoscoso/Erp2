@@ -227,9 +227,17 @@ final class UsuariosController
     {
         if (!$this->adminOnlyOr403()) return;
 
-        $q = trim((string)($_GET['q'] ?? ''));
-        if (mb_strlen($q) > 120) {
-            $q = mb_substr($q, 0, 120);
+        // 1) Leer y NORMALIZAR q (elimina espacios raros / invisibles)
+        $qRaw = (string)($_GET['q'] ?? '');
+        // Normaliza espacios unicode (incluye NBSP) a espacio normal
+        $q = preg_replace('/[[:space:]\x{00A0}]+/u', ' ', $qRaw) ?? '';
+        $q = trim($q);
+
+        // Limitar longitud
+        if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+            if (mb_strlen($q) > 120) $q = mb_substr($q, 0, 120);
+        } else {
+            if (strlen($q) > 120) $q = substr($q, 0, 120);
         }
 
         $limit = (int)($_GET['limit'] ?? 200);
@@ -242,7 +250,7 @@ final class UsuariosController
             $pdo = Database::pdo();
             $cols = $this->columns('usuarios');
             if (empty($cols)) {
-                $cols = ['email' => true, 'nombre' => true, 'nombres' => true];
+                $cols = ['email' => true, 'nombre' => true];
             }
 
             $where = [];
@@ -251,11 +259,14 @@ final class UsuariosController
             if ($q !== '') {
                 $or = [];
 
-                if (ctype_digit($q) && (int)$q > 0) {
-                    $or[] = 'id = :id';
-                    $params[':id'] = (int)$q;
-                }
+                // 2) Buscar ID sin depender de ctype_digit()
+                // Esto permite encontrar por "1", " 1 ", "1\u00A0", etc.
+                $or[] = 'CAST(id AS CHAR) = :id_str';
+                $params[':id_str'] = $q;
 
+                // 3) LIKE robusto (sin LOWER, y sin asumir collation)
+                // Si tu DB ya es case-insensitive, esto funciona normal.
+                // Si fuese case-sensitive, igual te matchea por exactitud de patrón, pero tu caso B demuestra que LIKE funciona.
                 $like = '%' . $q . '%';
                 $k = 1;
 
@@ -269,11 +280,8 @@ final class UsuariosController
                     $params[':q' . $k] = $like;
                     $k++;
                 }
-                if (isset($cols['nombres'])) {
-                    $or[] = 'nombres LIKE :q' . $k;
-                    $params[':q' . $k] = $like;
-                    $k++;
-                }
+                // IMPORTANTE: NO usar nombres si no existe
+                // if (isset($cols['nombres'])) { ... }
 
                 if (!empty($or)) {
                     $where[] = '(' . implode(' OR ', $or) . ')';
@@ -287,14 +295,9 @@ final class UsuariosController
             $sql .= ' ORDER BY id ASC';
             $sql .= " LIMIT {$limit}";
 
-            if (empty($params)) {
-                $st = $pdo->query($sql);
-                $items = $st ? (array)$st->fetchAll() : [];
-            } else {
-                $st = $pdo->prepare($sql);
-                $st->execute($params);
-                $items = (array)$st->fetchAll();
-            }
+            $st = $pdo->prepare($sql);
+            $st->execute($params);
+            $items = (array)$st->fetchAll();
 
             foreach ($items as &$u) {
                 if (is_array($u)) {
@@ -302,6 +305,7 @@ final class UsuariosController
                 }
             }
             unset($u);
+
         } catch (Throwable $e) {
             error_log('[usuarios.index] ' . $e->getMessage());
             Flash::set('error', 'No se pudo cargar el listado de usuarios.');
