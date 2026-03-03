@@ -120,9 +120,16 @@ final class RolesController
         // ✅ ADMIN-ONLY (id=1) también para lectura
         if (!$this->adminOnlyOr403()) return;
 
-        $q = trim((string)($_GET['q'] ?? ''));
-        if (mb_strlen($q) > 120) {
-            $q = mb_substr($q, 0, 120);
+        // Normalizar q (espacios raros / invisibles)
+        $qRaw = (string)($_GET['q'] ?? '');
+        $q = preg_replace('/[[:space:]\x{00A0}]+/u', ' ', $qRaw) ?? '';
+        $q = trim($q);
+
+        // Límite de longitud (con fallback si mbstring no está)
+        if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+            if (mb_strlen($q) > 120) $q = mb_substr($q, 0, 120);
+        } else {
+            if (strlen($q) > 120) $q = substr($q, 0, 120);
         }
 
         $limit = (int)($_GET['limit'] ?? 200);
@@ -140,18 +147,17 @@ final class RolesController
             if ($q !== '') {
                 $or = [];
 
+                // Buscar por ID exacto si q es numérico "limpio"
                 if (ctype_digit($q) && (int)$q > 0) {
                     $or[] = 'id = :id';
                     $params[':id'] = (int)$q;
                 }
 
-                // roles.nombre es el identificador principal
+                // ✅ SOLO nombre (NO descripción)
                 $or[] = 'nombre LIKE :q1';
                 $params[':q1'] = '%' . $q . '%';
 
-                if (!empty($or)) {
-                    $where[] = '(' . implode(' OR ', $or) . ')';
-                }
+                $where[] = '(' . implode(' OR ', $or) . ')';
             }
 
             $sql = 'SELECT * FROM roles';
