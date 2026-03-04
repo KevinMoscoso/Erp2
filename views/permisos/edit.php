@@ -1,46 +1,55 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <title><?= htmlspecialchars($title ?? 'Editar permiso', ENT_QUOTES, 'UTF-8') ?></title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    .err { color:#b00020; font-size: 0.95em; }
-    .haserr { border:1px solid #b00020; }
-  </style>
-</head>
-<body>
-  <h1><?= htmlspecialchars($title ?? 'Editar permiso', ENT_QUOTES, 'UTF-8') ?></h1>
-  <p><a href="/permisos">Volver</a></p>
+<?php
+declare(strict_types=1);
 
-  <?php if (!empty($flash_error)): ?>
-    <p style="color:#b00020;"><?= htmlspecialchars((string)$flash_error, ENT_QUOTES, 'UTF-8') ?></p>
-  <?php endif; ?>
+$title = 'Editar permiso';
+$permisoArr = is_array($permiso ?? null) ? $permiso : [];
+$id = (int)($permisoArr['id'] ?? 0);
 
-  <?php if (!empty($flash_success)): ?>
-    <p style="color:#0a7a0a;"><?= htmlspecialchars((string)$flash_success, ENT_QUOTES, 'UTF-8') ?></p>
-  <?php endif; ?>
+require __DIR__ . '/../partials/app_shell_top.php';
 
-  <?php $id = (int)($permiso['id'] ?? 0); ?>
+$csrfToken = '';
+if (isset($csrf) && is_string($csrf) && $csrf !== '') {
+  $csrfToken = $csrf;
+} elseif (class_exists(\Erp2\Core\Csrf::class) && method_exists(\Erp2\Core\Csrf::class, 'token')) {
+  $csrfToken = (string)\Erp2\Core\Csrf::token();
+}
+?>
+
+<div class="card form-card">
+  <div class="section-header" style="margin-bottom:12px;">
+    <h3>Editar permiso</h3>
+    <div class="table-actions">
+      <a class="btn btn-secondary" href="/permisos">Volver</a>
+    </div>
+  </div>
 
   <form method="post" action="/permisos/<?= $id ?>/editar">
-    <input type="hidden" name="csrf" value="<?= htmlspecialchars(\Erp2\Core\Csrf::token(), ENT_QUOTES, 'UTF-8') ?>">
+    <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
 
-    <label>Código</label><br>
-    <input
-      name="codigo"
-      maxlength="120"
-      required
-      pattern="[a-z0-9_.-]+"
-      class="<?= hasErr('codigo') ? 'haserr' : '' ?>"
-      value="<?= htmlspecialchars((string)old('codigo', (string)($permiso['codigo'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
-    >
-    <?php if ($m = err('codigo')): ?>
-      <div class="err"><?= htmlspecialchars((string)$m, ENT_QUOTES, 'UTF-8') ?></div>
-    <?php endif; ?>
+    <div class="form-grid">
+      <div style="grid-column: 1 / -1;">
+        <label for="codigo">Código</label>
+        <input
+          id="codigo"
+          name="codigo"
+          maxlength="120"
+          required
+          pattern="[a-z0-9_.-]+"
+          class="input <?= hasErr('codigo') ? 'error' : '' ?>"
+          value="<?= htmlspecialchars((string)old('codigo', (string)($permisoArr['codigo'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
+          style="width:100%; max-width: 520px;"
+        >
+        <?php if (hasErr('codigo')): ?>
+          <div class="field-error"><?= htmlspecialchars((string)err('codigo'), ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
+      </div>
+    </div>
 
-    <br><br>
-    <button type="submit">Guardar cambios</button>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Guardar cambios</button>
+      <a class="btn btn-secondary" href="/permisos">Cancelar</a>
+    </div>
   </form>
-</body>
-</html>
+</div>
+
+<?php require __DIR__ . '/../partials/app_shell_bottom.php'; ?>
