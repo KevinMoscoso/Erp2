@@ -1,112 +1,149 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <title><?= htmlspecialchars($title ?? 'Pagos', ENT_QUOTES, 'UTF-8') ?></title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
-<body>
-  <h1><?= htmlspecialchars($title ?? 'Pagos', ENT_QUOTES, 'UTF-8') ?></h1>
+<?php
+declare(strict_types=1);
 
-  <p><a href="/">Inicio</a></p>
+use Erp2\Core\Auth;
 
-  <?php if (!empty($error)): ?>
-    <p style="color:#b00020;"><?= htmlspecialchars((string)$error, ENT_QUOTES, 'UTF-8') ?></p>
-  <?php endif; ?>
-  <?php if (!empty($success)): ?>
-    <p style="color:#0a7a0a;"><?= htmlspecialchars((string)$success, ENT_QUOTES, 'UTF-8') ?></p>
-  <?php endif; ?>
+$title = $title ?? 'Pagos';
+require __DIR__ . '/../partials/app_shell_top.php';
 
-  <?php
-    // UX: si ref_id viene vacío, no mostrar "0"
-    $refIdVal = '';
-    if (isset($ref_id)) {
-        $tmp = trim((string)$ref_id);
-        if ($tmp !== '' && (int)$tmp > 0) {
-            $refIdVal = (string)((int)$tmp);
-        }
+// UX: si ref_id viene vacío, no mostrar "0"
+$refIdVal = '';
+if (isset($ref_id)) {
+    $tmp = trim((string)$ref_id);
+    if ($tmp !== '' && (int)$tmp > 0) {
+        $refIdVal = (string)((int)$tmp);
     }
-  ?>
+}
+?>
+<div class="card" style="padding:16px;">
+  <div class="section-header" style="margin-bottom:12px;">
+    <h3>Listado</h3>
+    <div class="table-actions">
+      <?php if (Auth::has('pagos.crear')): ?>
+        <a class="btn btn-primary" href="/pagos/crear">➕ Registrar pago</a>
+      <?php endif; ?>
+    </div>
+  </div>
 
-  <form method="get" action="/pagos">
-    <label>Buscar</label>
-    <input name="q" value="<?= htmlspecialchars((string)($q ?? ''), ENT_QUOTES, 'UTF-8') ?>" maxlength="120">
+  <form method="get" action="/pagos" style="margin-top:12px;">
+    <div class="kv-grid" style="margin-top:0;">
+      <div class="kv">
+        <div class="k">Buscar</div>
+        <div class="v" style="font-weight:600;">
+          <input
+            class="input"
+            name="q"
+            value="<?= htmlspecialchars((string)($q ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+            maxlength="120"
+            placeholder="tercero / referencia / nota…"
+            style="width:100%;"
+          >
+        </div>
+      </div>
 
-    <label>Tipo</label>
-    <select name="tipo_ref">
-      <option value="" <?= (($tipo_ref ?? '') === '') ? 'selected' : '' ?>>Todos</option>
-      <option value="factura" <?= (($tipo_ref ?? '') === 'factura') ? 'selected' : '' ?>>Factura</option>
-      <option value="compra" <?= (($tipo_ref ?? '') === 'compra') ? 'selected' : '' ?>>Compra</option>
-    </select>
+      <div class="kv">
+        <div class="k">Tipo</div>
+        <div class="v" style="font-weight:600;">
+          <select class="input" name="tipo_ref" style="width:100%;">
+            <option value="" <?= (($tipo_ref ?? '') === '') ? 'selected' : '' ?>>Todos</option>
+            <option value="factura" <?= (($tipo_ref ?? '') === 'factura') ? 'selected' : '' ?>>Factura</option>
+            <option value="compra" <?= (($tipo_ref ?? '') === 'compra') ? 'selected' : '' ?>>Compra</option>
+          </select>
+        </div>
+      </div>
 
-    <label>Ref ID</label>
-    <input name="ref_id" value="<?= htmlspecialchars($refIdVal, ENT_QUOTES, 'UTF-8') ?>" style="width:90px;">
+      <div class="kv">
+        <div class="k">Ref ID</div>
+        <div class="v" style="font-weight:600;">
+          <input class="input" name="ref_id" value="<?= htmlspecialchars($refIdVal, ENT_QUOTES, 'UTF-8') ?>" style="width:100%;" placeholder="ej: 123">
+        </div>
+      </div>
 
-    <button type="submit">Filtrar</button>
-    <a href="/pagos">Limpiar</a>
+      <div class="kv">
+        <div class="k">Acciones</div>
+        <div class="v" style="font-weight:600;">
+          <div class="table-actions">
+            <button class="btn btn-primary" type="submit">Filtrar</button>
+            <a class="btn btn-secondary" href="/pagos">Limpiar</a>
+          </div>
+        </div>
+      </div>
+    </div>
   </form>
 
-  <p style="margin-top:12px;">
-    <?php if (\Erp2\Core\Auth::has('pagos.crear')): ?>
-      <a href="/pagos/crear">Registrar pago</a>
-    <?php endif; ?>
-  </p>
-
-  <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Tipo</th>
-        <th>Referencia</th>
-        <th>Tercero</th>
-        <th>Fecha</th>
-        <th>Monto</th>
-        <th>Método</th>
-        <th>Ref.</th>
-        <th>Nota</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach (($items ?? []) as $p): ?>
-        <?php
-          $pid = (int)($p['id'] ?? 0);
-          $tref = (string)($p['tipo_ref'] ?? '');
-          $rid = (int)($p['ref_id'] ?? 0);
-          $link = ($tref === 'factura') ? ('/facturas/' . $rid) : ('/compras/' . $rid);
-          $refNum = (string)($p['ref_numero'] ?? '');
-        ?>
+  <div class="table-container">
+    <table class="table" style="min-width: 980px;">
+      <thead>
         <tr>
-          <td><?= htmlspecialchars((string)$pid, ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars($tref, ENT_QUOTES, 'UTF-8') ?></td>
-          <td>
-            <a href="<?= htmlspecialchars($link, ENT_QUOTES, 'UTF-8') ?>">
-              <?= htmlspecialchars($refNum !== '' ? $refNum : ('#' . $rid), ENT_QUOTES, 'UTF-8') ?>
-            </a>
-          </td>
-          <td><?= htmlspecialchars((string)($p['tercero_nombre'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars((string)($p['fecha'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars((string)($p['monto'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars((string)($p['metodo'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars((string)($p['referencia'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars((string)($p['nota'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-          <td>
-            <?php if (\Erp2\Core\Auth::has('pagos.eliminar')): ?>
-              <form method="post" action="/pagos/<?= $pid ?>/eliminar" style="display:inline;">
-                <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrf ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                <button type="submit" onclick="return confirm('¿Eliminar pago?');">Eliminar</button>
-              </form>
-            <?php else: ?>
-              —
-            <?php endif; ?>
-          </td>
+          <th>ID</th>
+          <th>Tipo</th>
+          <th>Referencia</th>
+          <th>Tercero</th>
+          <th>Fecha</th>
+          <th>Monto</th>
+          <th>Método</th>
+          <th>Ref.</th>
+          <th>Nota</th>
+          <th>Acciones</th>
         </tr>
-      <?php endforeach; ?>
+      </thead>
+      <tbody>
+        <?php foreach (($items ?? []) as $p): ?>
+          <?php
+            $pid = (int)($p['id'] ?? 0);
+            $tref = (string)($p['tipo_ref'] ?? '');
+            $rid = (int)($p['ref_id'] ?? 0);
+            $link = ($tref === 'factura') ? ('/facturas/' . $rid) : ('/compras/' . $rid);
+            $refNum = (string)($p['ref_numero'] ?? '');
 
-      <?php if (empty($items)): ?>
-        <tr><td colspan="10">Sin resultados.</td></tr>
-      <?php endif; ?>
-    </tbody>
-  </table>
-</body>
-</html>
+            $badgeTipo = 'badge-muted';
+            if ($tref === 'factura') $badgeTipo = 'badge-success';
+            elseif ($tref === 'compra') $badgeTipo = 'badge';
+          ?>
+          <tr>
+            <td><?= htmlspecialchars((string)$pid, ENT_QUOTES, 'UTF-8') ?></td>
+            <td><span class="badge <?= $badgeTipo ?>"><?= htmlspecialchars($tref, ENT_QUOTES, 'UTF-8') ?></span></td>
+            <td>
+              <div class="table-actions">
+                <a class="link" href="<?= htmlspecialchars($link, ENT_QUOTES, 'UTF-8') ?>">
+                  <?= htmlspecialchars($refNum !== '' ? $refNum : ('#' . $rid), ENT_QUOTES, 'UTF-8') ?>
+                </a>
+                <?php if ($rid > 0): ?>
+                  <span class="badge badge-muted">#<?= (int)$rid ?></span>
+                <?php endif; ?>
+              </div>
+            </td>
+            <td><?= htmlspecialchars((string)($p['tercero_nombre'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+            <td><?= htmlspecialchars((string)($p['fecha'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+            <td><?= htmlspecialchars((string)($p['monto'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+            <td><?= htmlspecialchars((string)($p['metodo'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+            <td>
+              <span class="muted"><?= htmlspecialchars((string)($p['referencia'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
+            </td>
+            <td>
+              <span class="muted"><?= htmlspecialchars((string)($p['nota'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
+            </td>
+            <td>
+              <div class="table-actions">
+                <?php if (Auth::has('pagos.eliminar')): ?>
+                  <form method="post" action="/pagos/<?= $pid ?>/eliminar" style="display:inline;">
+                    <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrf ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                    <button class="btn btn-danger" type="submit">Eliminar</button>
+                  </form>
+                <?php else: ?>
+                  <span class="badge badge-muted">—</span>
+                <?php endif; ?>
+              </div>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+
+        <?php if (empty($items)): ?>
+          <tr><td colspan="10">Sin resultados.</td></tr>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<?php require __DIR__ . '/../partials/app_shell_bottom.php'; ?>
