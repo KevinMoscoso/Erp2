@@ -1,85 +1,125 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <title><?= htmlspecialchars($title ?? 'Facturas', ENT_QUOTES, 'UTF-8') ?></title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
-<body>
-  <h1><?= htmlspecialchars($title ?? 'Facturas', ENT_QUOTES, 'UTF-8') ?></h1>
+<?php
+declare(strict_types=1);
 
-  <p><a href="/">Inicio</a></p>
+use Erp2\Core\Auth;
 
-  <?php if (!empty($error)): ?>
-    <p style="color:#b00020;"><?= htmlspecialchars((string)$error, ENT_QUOTES, 'UTF-8') ?></p>
-  <?php endif; ?>
+$title = 'Facturas';
+require __DIR__ . '/../partials/app_shell_top.php';
 
-  <?php if (!empty($success)): ?>
-    <p style="color:#0b6b0b;"><?= htmlspecialchars((string)$success, ENT_QUOTES, 'UTF-8') ?></p>
-  <?php endif; ?>
+$qVal = (string)($q ?? '');
 
-  <form method="get" action="/facturas">
-    <label for="q">Filtrar por número</label>
-    <input id="q" name="q" value="<?= htmlspecialchars((string)($q ?? ''), ENT_QUOTES, 'UTF-8') ?>" maxlength="32">
-    <button type="submit">Buscar</button>
-    <?php if (!empty($q)): ?>
-      <a href="/facturas">Limpiar</a>
-    <?php endif; ?>
+$badgeEstado = static function(string $estado): string {
+    return match ($estado) {
+        'emitida'  => 'badge-success',
+        'anulada'  => 'badge-danger',
+        'borrador' => 'badge-muted',
+        default    => 'badge-muted',
+    };
+};
+?>
+
+<div class="card" style="padding:16px;">
+  <div class="section-header" style="margin-bottom:12px;">
+    <h3>Listado</h3>
+    <div class="table-actions">
+      <?php if (Auth::has('facturas.crear')): ?>
+        <a class="btn btn-primary" href="/facturas/crear">➕ Nueva factura</a>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <form method="get" action="/facturas" style="margin-top:12px;">
+    <div class="kv-grid" style="margin-top:0;">
+      <div class="kv">
+        <div class="k">Filtrar por número</div>
+        <div class="v" style="font-weight:600;">
+          <input
+            id="q"
+            class="input"
+            name="q"
+            value="<?= htmlspecialchars($qVal, ENT_QUOTES, 'UTF-8') ?>"
+            maxlength="32"
+            placeholder="Ej: F-000123"
+            style="width:100%;"
+          >
+        </div>
+      </div>
+
+      <div class="kv">
+        <div class="k">Acciones</div>
+        <div class="v" style="font-weight:600;">
+          <div class="table-actions">
+            <button class="btn btn-primary" type="submit">Buscar</button>
+            <a class="btn btn-secondary" href="/facturas">Limpiar</a>
+          </div>
+        </div>
+      </div>
+    </div>
   </form>
 
-  <p style="margin-top:12px;">
-    <?php if (\Erp2\Core\Auth::has('facturas.crear')): ?>
-      <a href="/facturas/crear">Crear factura</a>
-    <?php endif; ?>
-  </p>
-
-  <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Número</th>
-        <th>Fecha</th>
-        <th>Tercero</th>
-        <th>Estado</th>
-        <th>Total</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach (($items ?? []) as $f): ?>
-        <?php $id = (int)($f['id'] ?? 0); ?>
+  <div class="table-container">
+    <table class="table">
+      <thead>
         <tr>
-          <td><?= htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8') ?></td>
-          <td>
-            <a href="/facturas/<?= $id ?>">
-              <?= htmlspecialchars((string)($f['numero'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
-            </a>
-          </td>
-          <td><?= htmlspecialchars((string)($f['fecha'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars((string)($f['tercero_nombre'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars((string)($f['estado'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-          <td><?= htmlspecialchars((string)($f['total'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-          <td>
-            <a href="/facturas/<?= $id ?>">Ver</a>
-
-            <?php if (\Erp2\Core\Auth::has('facturas.anular')): ?>
-              <?php if ((string)($f['estado'] ?? '') !== 'anulada'): ?>
-                | <form method="post" action="/facturas/<?= $id ?>/anular" style="display:inline;">
-                    <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrf ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                    <button type="submit" onclick="return confirm('¿Anular factura?');">Anular</button>
-                  </form>
-              <?php else: ?>
-                | (anulada)
-              <?php endif; ?>
-            <?php endif; ?>
-          </td>
+          <th>ID</th>
+          <th>Número</th>
+          <th>Fecha</th>
+          <th>Tercero</th>
+          <th>Estado</th>
+          <th>Total</th>
+          <th>Acciones</th>
         </tr>
-      <?php endforeach; ?>
+      </thead>
+      <tbody>
+        <?php foreach (($items ?? []) as $f): ?>
+          <?php
+            $id = (int)($f['id'] ?? 0);
+            $numero = (string)($f['numero'] ?? '');
+            $fecha = (string)($f['fecha'] ?? '');
+            $tercero = (string)($f['tercero_nombre'] ?? '');
+            $estado = (string)($f['estado'] ?? '');
+            $total = (string)($f['total'] ?? '');
+          ?>
+          <tr>
+            <td><?= htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8') ?></td>
+            <td>
+              <a class="link" href="/facturas/<?= $id ?>">
+                <?= htmlspecialchars($numero, ENT_QUOTES, 'UTF-8') ?>
+              </a>
+            </td>
+            <td><?= htmlspecialchars($fecha, ENT_QUOTES, 'UTF-8') ?></td>
+            <td><?= htmlspecialchars($tercero, ENT_QUOTES, 'UTF-8') ?></td>
+            <td>
+              <span class="badge <?= $badgeEstado($estado) ?>">
+                <?= htmlspecialchars($estado !== '' ? $estado : '—', ENT_QUOTES, 'UTF-8') ?>
+              </span>
+            </td>
+            <td><?= htmlspecialchars($total, ENT_QUOTES, 'UTF-8') ?></td>
+            <td>
+              <div class="table-actions">
+                <a class="btn btn-secondary" href="/facturas/<?= $id ?>">Ver</a>
 
-      <?php if (empty($items)): ?>
-        <tr><td colspan="7">Sin resultados.</td></tr>
-      <?php endif; ?>
-    </tbody>
-  </table>
-</body>
-</html>
+                <?php if (Auth::has('facturas.anular')): ?>
+                  <?php if ($estado !== 'anulada'): ?>
+                    <form method="post" action="/facturas/<?= $id ?>/anular" style="display:inline;">
+                      <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrf ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                      <button class="btn btn-danger" type="submit" onclick="return confirm('¿Anular factura?');">Anular</button>
+                    </form>
+                  <?php else: ?>
+                    <span class="badge badge-danger">anulada</span>
+                  <?php endif; ?>
+                <?php endif; ?>
+              </div>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+
+        <?php if (empty($items)): ?>
+          <tr><td colspan="7">Sin resultados.</td></tr>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<?php require __DIR__ . '/../partials/app_shell_bottom.php'; ?>

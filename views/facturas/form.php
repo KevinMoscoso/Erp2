@@ -1,200 +1,191 @@
 <?php
 declare(strict_types=1);
 
-// Helpers disponibles por HITO 9A: old(), err(), hasErr()
+use Erp2\Core\Auth;
 
-// CSRF: usar el valor que venga del controller, con fallback seguro
+// CSRF fallback seguro
 $csrfVal = '';
-if (isset($csrf) && is_string($csrf)) {
+if (isset($csrf) && is_string($csrf) && $csrf !== '') {
     $csrfVal = $csrf;
 } elseif (class_exists('\Erp2\Core\Csrf')) {
     $csrfVal = (string)\Erp2\Core\Csrf::token();
 }
 
-// Datos para selects
-$tercerosList = is_array($terceros ?? null) ? $terceros : [];
+$tercerosList  = is_array($terceros ?? null) ? $terceros : [];
 $productosList = is_array($productos ?? null) ? $productos : [];
 
-// Campos principales
 $fechaVal = (string) old('fecha', $today ?? date('Y-m-d'));
 $terceroOld = (string) old('tercero_id', '');
 
-// Mensajes globales (si el controller los pasa)
-$errorMsg = isset($error) ? (string)$error : '';
-$successMsg = isset($success) ? (string)$success : '';
-
-// Partials opcionales si existen en tu repo (no rompe si no existen)
-$partialsDir = __DIR__ . '/../partials';
-$hasHeader = is_file($partialsDir . '/header.php');
-$hasFooter = is_file($partialsDir . '/footer.php');
-
 $title = $title ?? 'Crear factura';
-
-if ($hasHeader) {
-    require $partialsDir . '/header.php';
-} else {
-    ?>
-    <!doctype html>
-    <html lang="es">
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title><?= htmlspecialchars((string)$title, ENT_QUOTES, 'UTF-8') ?></title>
-      <style>
-        .err{color:#b00020;font-size:.95em;margin-top:4px}
-        .field{margin:10px 0}
-        .invalid{outline:2px solid #b00020}
-        table{border-collapse:collapse;width:100%}
-        th,td{border:1px solid #ddd;padding:6px}
-      </style>
-    </head>
-    <body>
-    <?php
-}
+require __DIR__ . '/../partials/app_shell_top.php';
 ?>
 
-<h1><?= htmlspecialchars((string)$title, ENT_QUOTES, 'UTF-8') ?></h1>
-
-<p><a href="/facturas">← Volver</a></p>
-
-<?php if ($errorMsg !== ''): ?>
-  <p style="color:#b00020;"><?= htmlspecialchars($errorMsg, ENT_QUOTES, 'UTF-8') ?></p>
-<?php endif; ?>
-<?php if ($successMsg !== ''): ?>
-  <p style="color:#0a7a0a;"><?= htmlspecialchars($successMsg, ENT_QUOTES, 'UTF-8') ?></p>
-<?php endif; ?>
-
-<form method="post" action="/facturas/crear">
-  <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfVal, ENT_QUOTES, 'UTF-8') ?>">
-
-  <div class="field">
-    <label for="fecha">Fecha</label><br>
-    <input
-      id="fecha"
-      type="date"
-      name="fecha"
-      value="<?= htmlspecialchars($fechaVal, ENT_QUOTES, 'UTF-8') ?>"
-      class="<?= hasErr('fecha') ? 'invalid' : '' ?>"
-      required
-    >
-    <?php if (err('fecha')): ?>
-      <div class="err"><?= htmlspecialchars(err('fecha') ?? '', ENT_QUOTES, 'UTF-8') ?></div>
-    <?php endif; ?>
+<div class="card form-card">
+  <div class="section-header" style="margin-bottom:12px;">
+    <h3><?= htmlspecialchars((string)$title, ENT_QUOTES, 'UTF-8') ?></h3>
+    <div class="table-actions">
+      <a class="btn btn-secondary" href="/facturas">Volver</a>
+    </div>
   </div>
 
-  <div class="field">
-    <label for="tercero_id">Cliente</label><br>
-    <select
-      id="tercero_id"
-      name="tercero_id"
-      class="<?= hasErr('tercero_id') ? 'invalid' : '' ?>"
-      required
-    >
-      <option value="">-- seleccionar --</option>
-      <?php foreach ($tercerosList as $t): ?>
-        <?php
-          $tid = (string)($t['id'] ?? '');
-          $sel = ($terceroOld !== '' && $terceroOld === $tid) ? 'selected' : '';
-          $label = (string)($t['nombre'] ?? ($t['razon_social'] ?? ($t['nombre_comercial'] ?? 'Tercero #' . $tid)));
-        ?>
-        <option value="<?= htmlspecialchars($tid, ENT_QUOTES, 'UTF-8') ?>" <?= $sel ?>>
-          <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
-        </option>
-      <?php endforeach; ?>
-    </select>
+  <form method="post" action="/facturas/crear">
+    <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfVal, ENT_QUOTES, 'UTF-8') ?>">
 
-    <?php if (err('tercero_id')): ?>
-      <div class="err"><?= htmlspecialchars(err('tercero_id') ?? '', ENT_QUOTES, 'UTF-8') ?></div>
-    <?php endif; ?>
-  </div>
+    <div class="form-grid" style="margin-top:0;">
+      <div>
+        <label for="fecha">Fecha</label>
+        <input
+          id="fecha"
+          type="date"
+          name="fecha"
+          value="<?= htmlspecialchars($fechaVal, ENT_QUOTES, 'UTF-8') ?>"
+          class="input <?= hasErr('fecha') ? 'error' : '' ?>"
+          required
+          style="width:100%;"
+        >
+        <?php if (err('fecha')): ?>
+          <div class="field-error"><?= htmlspecialchars((string)err('fecha'), ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
+      </div>
 
-  <hr>
+      <div>
+        <label for="tercero_id">Cliente</label>
+        <select
+          id="tercero_id"
+          name="tercero_id"
+          class="input <?= hasErr('tercero_id') ? 'error' : '' ?>"
+          required
+          style="width:100%;"
+        >
+          <option value="">-- seleccionar --</option>
+          <?php foreach ($tercerosList as $t): ?>
+            <?php
+              $tid = (string)($t['id'] ?? '');
+              $sel = ($terceroOld !== '' && $terceroOld === $tid) ? 'selected' : '';
+              $label = (string)($t['nombre'] ?? ($t['razon_social'] ?? ($t['nombre_comercial'] ?? ('Tercero #' . $tid))));
+            ?>
+            <option value="<?= htmlspecialchars($tid, ENT_QUOTES, 'UTF-8') ?>" <?= $sel ?>>
+              <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
 
-  <h2>Líneas</h2>
-  <?php if (err('lines')): ?>
-    <p class="err"><?= htmlspecialchars(err('lines') ?? '', ENT_QUOTES, 'UTF-8') ?></p>
-  <?php endif; ?>
+        <?php if (err('tercero_id')): ?>
+          <div class="field-error"><?= htmlspecialchars((string)err('tercero_id'), ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
+      </div>
+    </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th style="width:20%;">Producto/Servicio</th>
-        <th>Descripción</th>
-        <th style="width:12%;">Cantidad</th>
-        <th style="width:12%;">Precio unit.</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php for ($i = 0; $i < 5; $i++): ?>
-        <?php
-          $prodOld = (string) old("line_producto_id.$i", '');
-          $descOld = (string) old("line_descripcion.$i", '');
-          $qtyOld  = (string) old("line_cantidad.$i", '');
-          $preOld  = (string) old("line_precio_unitario.$i", '');
-        ?>
-        <tr>
-          <td>
-            <select name="line_producto_id[]">
-              <option value="">-- (opcional) --</option>
-              <?php foreach ($productosList as $p): ?>
-                <?php
-                  $pid = (string)($p['id'] ?? '');
-                  $sel = ($prodOld !== '' && $prodOld === $pid) ? 'selected' : '';
-                  $pNombre = (string)($p['nombre'] ?? ($p['descripcion'] ?? ('Item #' . $pid)));
-                  $pTipo = (string)($p['tipo'] ?? 'producto'); // 'producto'|'servicio'
-                ?>
-                <option value="<?= htmlspecialchars($pid, ENT_QUOTES, 'UTF-8') ?>" <?= $sel ?>>
-                  <?= htmlspecialchars($pNombre, ENT_QUOTES, 'UTF-8') ?><?= $pTipo ? ' (' . htmlspecialchars($pTipo, ENT_QUOTES, 'UTF-8') . ')' : '' ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </td>
+    <div class="section" style="margin-top:16px;">
+      <div class="section-header" style="margin-bottom:10px;">
+        <h3>Líneas</h3>
+        <span class="muted">Producto / Servicio</span>
+      </div>
 
-          <td>
-            <input
-              type="text"
-              name="line_descripcion[]"
-              value="<?= htmlspecialchars($descOld, ENT_QUOTES, 'UTF-8') ?>"
-              placeholder="Descripción"
-              style="width:100%;"
-            >
-          </td>
+      <?php if (err('lines')): ?>
+        <div class="alert alert-error" role="alert">
+          <?= htmlspecialchars((string)err('lines'), ENT_QUOTES, 'UTF-8') ?>
+        </div>
+      <?php endif; ?>
 
-          <td>
-            <input
-              type="number"
-              name="line_cantidad[]"
-              value="<?= htmlspecialchars($qtyOld, ENT_QUOTES, 'UTF-8') ?>"
-              min="0.01"
-              step="0.01"
-              placeholder="1.00"
-            >
-          </td>
+      <div class="table-container" style="margin-top:0;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:24%;">Producto/Servicio</th>
+              <th>Descripción</th>
+              <th style="width:14%;">Cantidad</th>
+              <th style="width:14%;">Precio unit.</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php for ($i = 0; $i < 5; $i++): ?>
+              <?php
+                $prodOld = (string) old("line_producto_id.$i", '');
+                $descOld = (string) old("line_descripcion.$i", '');
+                $qtyOld  = (string) old("line_cantidad.$i", '');
+                $preOld  = (string) old("line_precio_unitario.$i", '');
 
-          <td>
-            <input
-              type="number"
-              name="line_precio_unitario[]"
-              value="<?= htmlspecialchars($preOld, ENT_QUOTES, 'UTF-8') ?>"
-              min="0"
-              step="0.01"
-              placeholder="0.00"
-            >
-          </td>
-        </tr>
-      <?php endfor; ?>
-    </tbody>
-  </table>
+                $qtyKey = "line_cantidad.$i";
+                $preKey = "line_precio_unitario.$i";
+              ?>
+              <tr>
+                <td>
+                  <select name="line_producto_id[]" class="input" style="width:100%;">
+                    <option value="">-- (opcional) --</option>
+                    <?php foreach ($productosList as $p): ?>
+                      <?php
+                        $pid = (string)($p['id'] ?? '');
+                        $sel = ($prodOld !== '' && $prodOld === $pid) ? 'selected' : '';
+                        $pNombre = (string)($p['nombre'] ?? ($p['descripcion'] ?? ('Item #' . $pid)));
+                        $pTipo = (string)($p['tipo'] ?? 'producto');
+                      ?>
+                      <option value="<?= htmlspecialchars($pid, ENT_QUOTES, 'UTF-8') ?>" <?= $sel ?>>
+                        <?= htmlspecialchars($pNombre, ENT_QUOTES, 'UTF-8') ?><?= $pTipo ? ' (' . htmlspecialchars($pTipo, ENT_QUOTES, 'UTF-8') . ')' : '' ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </td>
 
-  <div class="field" style="margin-top:12px;">
-    <button type="submit">Guardar (borrador)</button>
-  </div>
-</form>
+                <td>
+                  <input
+                    type="text"
+                    name="line_descripcion[]"
+                    value="<?= htmlspecialchars($descOld, ENT_QUOTES, 'UTF-8') ?>"
+                    placeholder="Descripción"
+                    class="input"
+                    style="width:100%;"
+                  >
+                </td>
 
-<?php
-if ($hasFooter) {
-    require $partialsDir . '/footer.php';
-} elseif (!$hasHeader) {
-    echo "</body></html>";
-}
-?>
+                <td>
+                  <input
+                    type="number"
+                    name="line_cantidad[]"
+                    value="<?= htmlspecialchars($qtyOld, ENT_QUOTES, 'UTF-8') ?>"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="1.00"
+                    class="input <?= hasErr($qtyKey) ? 'error' : '' ?>"
+                    style="width:100%;"
+                  >
+                  <?php if (err($qtyKey)): ?>
+                    <div class="field-error"><?= htmlspecialchars((string)err($qtyKey), ENT_QUOTES, 'UTF-8') ?></div>
+                  <?php endif; ?>
+                </td>
+
+                <td>
+                  <input
+                    type="number"
+                    name="line_precio_unitario[]"
+                    value="<?= htmlspecialchars($preOld, ENT_QUOTES, 'UTF-8') ?>"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    class="input <?= hasErr($preKey) ? 'error' : '' ?>"
+                    style="width:100%;"
+                  >
+                  <?php if (err($preKey)): ?>
+                    <div class="field-error"><?= htmlspecialchars((string)err($preKey), ENT_QUOTES, 'UTF-8') ?></div>
+                  <?php endif; ?>
+                </td>
+              </tr>
+            <?php endfor; ?>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="muted" style="margin-top:10px;">
+        Puedes dejar filas vacías. El sistema tomará solo las líneas válidas.
+      </p>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Guardar (borrador)</button>
+      <a class="btn btn-secondary" href="/facturas">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+<?php require __DIR__ . '/../partials/app_shell_bottom.php'; ?>
