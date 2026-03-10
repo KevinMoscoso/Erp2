@@ -35,6 +35,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+
+  /* ✅ Evita botones “en vertical” o partidos */
+  white-space: nowrap;
 }
 
 .btn-primary { background: var(--color-primary); color: #fff; }
@@ -259,9 +262,7 @@ label {
   padding: 6px 10px;
 }
 
-.main-content {
-  padding: 18px;
-}
+.main-content { padding: 18px; }
 
 .header {
   background: var(--color-surface);
@@ -351,7 +352,6 @@ label {
 }
 
 .quick-card h4 { font-size: 15px; font-weight: 900; }
-
 .quick-card p { color: var(--color-text-secondary); font-size: 13px; }
 
 .quick-actions {
@@ -373,21 +373,26 @@ label {
   .dashboard-grid, .quick-grid { grid-template-columns: 1fr; }
 }
 
-/* ===== Auditoría / Tablas / Key-Value ===== */
+/* ===== Tablas / Key-Value ===== */
 .table-container {
   margin-top: 12px;
   border: 1px solid var(--color-border);
   border-radius: 14px;
-  overflow: auto;
   background: var(--color-surface);
+
+  /* ✅ el scroll horizontal se queda dentro del card */
   max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
+
+  /* ✅ evita que el contenido fuerce “aplastamiento” */
+  table-layout: auto;
   min-width: 860px;
 }
 
@@ -396,7 +401,8 @@ label {
   border-bottom: 1px solid var(--color-border);
   vertical-align: top;
   font-size: 14px;
-  max-width: 0;
+
+  /* ✅ deja que el texto largo se rompa, pero sin colapsar columnas */
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -409,17 +415,35 @@ label {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   background: #f9fafb;
+
+  /* ✅ evita encabezados en vertical */
+  white-space: nowrap;
 }
 
-.table tr:hover td {
-  background: #f8fafc;
-}
+.table tr:hover td { background: #f8fafc; }
 
 .table td pre {
   max-width: 520px;
   overflow: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+/* ✅ Acciones dentro de tablas: mantener en una fila */
+.table td .table-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+/* En móvil dejamos que sí pueda saltar si es necesario */
+@media (max-width: 720px) {
+  .table td .table-actions {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
 }
 
 .table-actions {
@@ -442,22 +466,9 @@ label {
   white-space: nowrap;
 }
 
-.badge-muted {
-  background: var(--color-bg);
-  color: var(--color-text-secondary);
-}
-
-.badge-success {
-  background: #d1fae5;
-  border-color: #a7f3d0;
-  color: #065f46;
-}
-
-.badge-danger {
-  background: #fee2e2;
-  border-color: #fecaca;
-  color: #991b1b;
-}
+.badge-muted { background: var(--color-bg); color: var(--color-text-secondary); }
+.badge-success { background: #d1fae5; border-color: #a7f3d0; color: #065f46; }
+.badge-danger { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
 
 .kv-grid {
   display: grid;
